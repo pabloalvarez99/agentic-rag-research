@@ -155,8 +155,26 @@ loosely.
 - `_snippet` copied retrieved text into the report verbatim. Retrieved text is untrusted
   (master plan §13.6), and the report is printed to a terminal by the CLI that arrives with M3, so a
   passage containing an ANSI escape could rewrite an operator's screen — and a passage containing a
-  `\r` could hide the rest of the finding it belongs to. C0/C1 control characters are now dropped
-  from a finding. The committed corpus contains none, so no baseline dump changed.
+  `\r` could hide the rest of the finding it belongs to. C0/C1 control characters are now replaced
+  by a space, rather than deleted, so that stripping one cannot join two words into a third. The
+  committed corpus contains none, so no baseline dump changed.
+- Any text quoted into a report — a passage, the restated question, a gap — could contain the
+  *shape* of a citation marker. A document that quotes `[7]` printed a marker resolving to no
+  citation, which is exactly the failure the citation policy exists to prevent; the verifier found
+  it by flagging `citation_marker_unresolved` on an otherwise ordinary run. `[n]` in quoted text is
+  now printed `(n)`. The digits are kept, so nothing the source said is lost, and `[n]` keeps its
+  single meaning: *this run retrieved that*. Both substitutions live in one function, `_quotable`,
+  applied at every point where untrusted text enters a report.
+
+### 5.1 A boundary pinned, not changed
+
+A sub-question longer than the 8 000-character cap on `RetrieveRequest.question` raises
+`ValidationError` out of `run_research` — an unhandled exception, not a `degraded` run. That is left
+as it is and pinned by `test_a_sub_question_larger_than_the_tool_accepts_fails_loudly`. It is not a
+tool failure: nothing was called, and the planner produced a request the tool's own contract
+rejects. Deciding whether the runtime surface should return an error envelope for it belongs to the
+lane that owns request validation, and converting it to `degraded` here would hide a planner bug
+behind a status that says the world misbehaved.
 
 ## 6. Bounds
 
@@ -168,12 +186,53 @@ len(trace) <= 3 * max_steps + 3
 
 `plan_created` + `synthesize` + `stop` are the three fixed events; each step contributes at most
 `tool_call`, one of `tool_result`/`tool_error`, and a `critique`. A failed step contributes fewer,
-because the run stops. `tests/reliability/test_bounds.py` asserts the bound for every budget from 1
-to 20 against a backend built to force the maximum number of steps, and asserts that doubling the
-budget does not more than double the trace. Nothing there measures wall-clock time: a bound proved
-by a stopwatch is a bound that fails on a loaded machine.
+because the run stops.
 
-## 7. Residual risks
+`tests/reliability/test_bounds.py` asserts the bound for every budget from 1 to 20 across four
+question shapes and forty generated corpora, and adds the properties that make the bound worth
+having: a larger budget never *shortens* a trace, doubling the budget does not more than double it,
+`tool_call` count equals `steps_taken`, and every call is resolved by exactly one outcome event.
+Nothing there measures wall-clock time — a bound proved by a stopwatch is a bound that fails on a
+loaded machine and passes on a fast one, which makes it evidence about the runner.
+
+The second bound is the one that actually explains why runs are short. The critic scores
+`note_count + covered_terms` against `SUFFICIENT_SCORE`, so a run that retrieves anything relevant
+reaches sufficiency within a few steps, and a run that retrieves nothing relevant stops producing
+new follow-ups. Because no sub-question is ever retrieved for twice, the work queue strictly
+shrinks: **a run terminates whether or not the budget ever binds.** That is asserted directly
+(`test_a_run_terminates_because_the_queue_empties_not_because_time_runs_out`,
+`test_no_sub_question_is_ever_retrieved_twice`) rather than by constructing a backend that pins
+`steps_taken` to `max_steps`. No such backend can be built against this critic without weakening it,
+and a test that changed the code it is measuring would prove nothing about the shipped loop.
+
+## 7. Compatibility evidence
+
+Four independent checks, because "additive" is a claim and each of these can falsify it on its own.
+
+| Check | Result |
+|-------|--------|
+| The nine frozen dumps re-run and compared field by field, including the key order of every nested object and the event-name sequence of every trace | identical; the only difference anywhere is the new `steps[*].failure: null` key, named explicitly by the test rather than diffed loosely |
+| `__all__` of `agentic_rag.agent` and `agentic_rag.tools`, and the members of `StopReason` and `TraceEventName`, compared against `0b86e96` | nothing removed, nothing renamed, relative order of pre-existing members preserved; 4 symbols and 2 literal members added |
+| Signatures of every public function this lane touched | `decide_outcome` and `synthesize` gained keyword-only arguments with defaults; `retrieve_node` widened `None` to `bool`. No existing caller reads that return value |
+| The 97 pre-existing tests | unmodified — no file outside `tests/reliability/` appears in the diff — and passing |
+
+### 7.1 On the order of commits
+
+Every commit on this branch is green, including the two that carry a fix. That is deliberate, and it
+is not a shortcut around red-first discipline: each defect was reproduced by a failing test before
+the production change existed, and the pre-fix failure output — 21 failing tests, by name — is
+quoted in the pull request. Committing a red tree would have left a revision on the shared history
+where the lane's own gates do not pass, which is a worse artefact to hand a reviewer than a log they
+can read.
+
+Each defect can be re-derived from the branch. Revert the handler in `retrieve_node` and
+`test_a_tool_failure_ends_the_run_instead_of_unwinding_it` fails with the `ToolError` it was written
+against. Revert the `unanswered_sub_questions` split and
+`test_a_failed_step_is_reported_as_failed_and_not_as_answered_by_nothing` fails. Revert either
+substitution in `_quotable` and `tests/reliability/test_untrusted_text.py` fails. The tests are the
+durable evidence, not the order of the commits.
+
+## 8. Residual risks
 
 - The `degraded` path is exercised by backends that raise on demand. No test contacts a real
   production-rag instance, so what is proved is that the *loop* degrades honestly, not that
@@ -187,3 +246,14 @@ by a stopwatch is a bound that fails on a loaded machine.
 - The verifier checks the contract the loop declares. It cannot detect a run that is internally
   consistent and wrong — a corpus that returns plausible passages for the wrong question passes
   every invariant here.
+- `_quotable` neutralises control characters and marker shapes. It does **not** touch bidirectional
+  overrides (`U+202E`), zero-width characters or homoglyphs, all of which are printable Unicode that
+  can still make a rendered finding read as something other than the passage it quotes. They are
+  left because dropping them silently alters legitimate text in the scripts that use them, and the
+  right place to decide that is the layer that knows its output surface — a terminal, an HTML
+  document and a JSON consumer do not want the same answer. Generated cases already carry
+  zero-width characters, so the day a policy is chosen there is a corpus to test it against.
+- The bound in §6 is a property of *this* critic. A future critic that keeps producing new
+  sub-questions would make `max_steps` the binding constraint rather than a backstop; the trace
+  bound still holds, and `test_the_extremes_of_the_budget_behave` would still pass, but runs would
+  become budget-shaped. That is a behaviour change worth noticing, not a defect in this lane.
