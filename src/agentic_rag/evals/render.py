@@ -77,7 +77,7 @@ def _header(payload: Mapping[str, Any]) -> list[str]:
     return [
         "# Agentic research loop — fixture scorecard",
         "",
-        f"> **{payload['evidence_class']} evidence.** {payload['disclaimer']}",
+        f"> **Evidence class: {payload['evidence_class']}.** {payload['disclaimer']}",
         "",
         *_table(
             ["Field", "Value"],

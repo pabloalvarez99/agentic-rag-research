@@ -42,7 +42,8 @@ def markdown(payload: dict[str, Any]) -> str:
 
 def test_the_first_thing_it_says_is_what_it_is(markdown: str) -> None:
     head = markdown.splitlines()[:4]
-    assert any("fixture-contract evidence" in line for line in head)
+    assert any("Evidence class: fixture-contract" in line for line in head)
+    assert any("not a measurement of retrieval quality" in line for line in head)
 
 
 def test_it_names_what_it_does_not_measure(markdown: str) -> None:
