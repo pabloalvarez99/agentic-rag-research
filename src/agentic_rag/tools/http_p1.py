@@ -281,7 +281,14 @@ class HttpRetrievalBackend:
         return self._outcome(self._parse(body), top_k=top_k)
 
     def _payload(self, sub_question: str) -> dict[str, object]:
-        """Build and locally validate the request body for *sub_question*."""
+        """Build and locally validate the request body for *sub_question*.
+
+        The error names the field and the rule it broke and never the value.
+        Pydantic's own rendering embeds a snippet of the input, and a tool error
+        is written into the run's trace: a sub-question is not a credential, but
+        an adapter that copies its input into its error text is one paste away
+        from being the component that logged one.
+        """
         try:
             request = P1QueryRequest(
                 question=sub_question,
@@ -290,7 +297,7 @@ class HttpRetrievalBackend:
             )
         except ValidationError as error:
             raise ToolError(
-                f"{self.query_url} would reject this sub-question: {error}",
+                f"{self.query_url} would reject this sub-question: {_field_problems(error)}",
                 error_type=ERROR_VALIDATION,
             ) from error
         return request.to_payload()
@@ -378,7 +385,7 @@ class HttpRetrievalBackend:
             return P1QueryResponse.model_validate(document)
         except ValidationError as error:
             raise ToolError(
-                f"{self.query_url} sent a body this client cannot read: {error}",
+                f"{self.query_url} sent a body this client cannot read: {_field_problems(error)}",
                 error_type=ERROR_CONTRACT_MISMATCH,
             ) from error
 
@@ -391,6 +398,25 @@ class HttpRetrievalBackend:
             citations_returned=len(response.citations),
             request_id=self._request_id,
         )
+
+
+def _field_problems(error: ValidationError) -> str:
+    """Summarise a validation failure as fields and rules, never as values.
+
+    Args:
+        error: The failure raised while validating a request or a response.
+
+    Returns:
+        A compact ``field: rule`` list. ``str(error)`` would be more detailed and
+        would also carry ``input_value=...`` for every failed field — the payload
+        of a sub-question, or a chunk of somebody's corpus — into a message that
+        ends up in a trace, a log line and an exception report.
+    """
+    problems = []
+    for detail in error.errors(include_url=False):
+        location = ".".join(str(part) for part in detail["loc"]) or "<body>"
+        problems.append(f"{location}: {detail['msg']}")
+    return "; ".join(problems)
 
 
 def _validated_request_id(request_id: str | None) -> str:

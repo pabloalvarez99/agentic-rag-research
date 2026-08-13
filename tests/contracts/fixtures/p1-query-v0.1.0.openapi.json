@@ -1,0 +1,315 @@
+{
+  "x-provenance": {
+    "why_this_file_exists": "The excerpt of production-rag's OpenAPI document that agentic-rag-research actually depends on, frozen at the release it was written against. It is the offline half of the compatibility check: tests/contracts runs verify_contract() against this file with no service running, and the opt-in integration run does the same against the live /openapi.json of the instance it is about to query. One verifier, two inputs, so 'compatible' means the same thing offline and live.",
+    "upstream_repository": "https://github.com/pabloalvarez99/production-rag",
+    "upstream_tag": "v0.1.0",
+    "upstream_commit": "678c5543baf0f4a723dc823de1f19162ba54b4a9",
+    "captured": "2026-08-13",
+    "generated_by": "python -c \"from production_rag.main import create_app; from production_rag.config import Settings; print(create_app(Settings()).openapi())\" at the tag above, reduced to POST /v1/query and the schemas it references",
+    "reduced_from": "4 paths, 8 schemas",
+    "not_captured": [
+      "/health, /v1/health, /v1/ready \u2014 this client never calls them",
+      "the 422 body schema \u2014 the status is the contract fact, the body is not read",
+      "QueryRequest.debug and QueryResponse.debug beyond the $ref \u2014 diagnostics this client does not ask for"
+    ],
+    "facts_not_visible_in_openapi": {
+      "refusal_reasons": {
+        "value": [
+          "no_evidence",
+          "model_abstained",
+          "no_citations",
+          "empty_answer"
+        ],
+        "source": "src/production_rag/generation/guardrails.py at the tag",
+        "note": "refusal_reason is declared as a plain string, so the closed set is source-derived, not schema-derived."
+      },
+      "citation_order": {
+        "value": "order of first mention in the answer; markers are never renumbered",
+        "source": "src/production_rag/generation/citations.py at the tag",
+        "note": "This is why the adapter sorts by rank before applying top_k."
+      },
+      "unset_fields_are_omitted": {
+        "value": "the route serialises with response_model_exclude_unset=True",
+        "source": "src/production_rag/api/routes/query.py at the tag",
+        "note": "citations and refusal_reason can be absent from a valid 200 body."
+      },
+      "correlation_id": {
+        "value": "X-Request-ID, matching ^[A-Za-z0-9._:-]{1,128}$, echoed on the response",
+        "source": "src/production_rag/api/middleware.py at the tag",
+        "note": "A malformed inbound id is silently replaced upstream, so it is validated here."
+      },
+      "api_prefix_is_configurable": {
+        "value": "/v1 by default, from Settings.api_prefix (env API_PREFIX)",
+        "source": "src/production_rag/config.py at the tag"
+      },
+      "no_top_k_control": {
+        "value": "QueryRequest publishes no top_k; the pipeline's top_k is server configuration",
+        "source": "src/production_rag/api/schemas.py at the tag"
+      }
+    }
+  },
+  "openapi": "3.1.0",
+  "info": {
+    "title": "production-rag",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/v1/query": {
+      "post": {
+        "operationId": "query",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Grounded answer or explicit refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Query pipeline is absent from this split milestone checkout."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "QueryRequest": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Question",
+            "description": "Natural-language question to answer from indexed evidence."
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "dense",
+                  "sparse",
+                  "hybrid"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode",
+            "description": "Retrieval mode override; omitted uses the configured default."
+          },
+          "rerank": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "auto",
+                  "fake",
+                  "local",
+                  "cohere"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank",
+            "description": "Reranker override; omitted uses the query pipeline default."
+          },
+          "llm": {
+            "type": "string",
+            "enum": [
+              "fake",
+              "openai"
+            ],
+            "title": "Llm",
+            "description": "Generation provider. 'fake' is deterministic offline plumbing only.",
+            "default": "fake"
+          },
+          "embedder": {
+            "type": "string",
+            "enum": [
+              "fake",
+              "openai"
+            ],
+            "title": "Embedder",
+            "description": "Query embedder. 'fake' is the credential-free default and must match ingestion.",
+            "default": "fake"
+          },
+          "debug": {
+            "type": "boolean",
+            "title": "Debug",
+            "description": "Ask the pipeline to collect diagnostics; never exposes credentials.",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "QueryRequest",
+        "description": "One grounded-answer request.\n\nUnknown fields are rejected so a misspelled control never silently falls\nback to a default. Whitespace-only questions are rejected by Pydantic after\nglobal string stripping, before the query pipeline or a provider is called."
+      },
+      "QueryResponse": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "title": "Answer",
+            "description": "Answer text with inline citation markers, or refusal text."
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationOut"
+            },
+            "type": "array",
+            "title": "Citations",
+            "description": "Resolved evidence referenced by the answer."
+          },
+          "refused": {
+            "type": "boolean",
+            "title": "Refused",
+            "description": "Whether the evidence guardrail declined to answer."
+          },
+          "refusal_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refusal Reason",
+            "description": "Machine-readable refusal explanation; null for grounded answers."
+          },
+          "debug": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueryDebug"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Safe pipeline diagnostics, populated only when the request opts in."
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer",
+          "refused"
+        ],
+        "title": "QueryResponse",
+        "description": "Grounded answer or an explicit refusal."
+      },
+      "CitationOut": {
+        "properties": {
+          "marker": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Marker",
+            "description": "One-based marker ordinal used in the answer."
+          },
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id",
+            "description": "Stable identifier of the supporting chunk."
+          },
+          "source_path": {
+            "type": "string",
+            "title": "Source Path",
+            "description": "Corpus-relative source path."
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Supporting passage exactly as it was shown to the model."
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Rank",
+            "description": "Position of the passage in the retrieved ranking."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Source document title, when known."
+          },
+          "heading_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading Path",
+            "description": "Heading ancestry within the source document, when known."
+          }
+        },
+        "type": "object",
+        "required": [
+          "marker",
+          "chunk_id",
+          "source_path",
+          "text",
+          "rank"
+        ],
+        "title": "CitationOut",
+        "description": "A resolved answer marker pointing to one retrieved chunk."
+      },
+      "QueryDebug": {
+        "properties": {
+          "timings_ms": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Timings Ms",
+            "description": "Elapsed milliseconds keyed by query graph node."
+          },
+          "invalid_markers": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Invalid Markers",
+            "description": "Citation marker ordinals emitted by the model but not resolved."
+          }
+        },
+        "type": "object",
+        "title": "QueryDebug",
+        "description": "Safe, opt-in diagnostics for one query execution.\n\nThis is deliberately an allowlist rather than a dump of graph state. Provider\ncredentials, prompts, retrieved passages and model input never belong here."
+      }
+    }
+  }
+}

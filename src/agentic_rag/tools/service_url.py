@@ -133,7 +133,12 @@ class ServiceUrl:
             raise _reject(candidate, "contains a relative path segment ('.' or '..')")
 
         host = parts.hostname.lower()
-        authority = f"{host}:{port}" if port is not None else host
+        # urlsplit strips the brackets off an IPv6 literal, and reassembling
+        # without them yields http://::1:8000 — an address no client can parse
+        # back, because the port separator and the address separator are the same
+        # character. The brackets are syntax, not decoration.
+        literal = f"[{host}]" if ":" in host else host
+        authority = f"{literal}:{port}" if port is not None else literal
         self._scheme = scheme
         self._host = host
         self._base = f"{scheme}://{authority}{path}"
@@ -150,7 +155,7 @@ class ServiceUrl:
 
     @property
     def host(self) -> str:
-        """Return the lower-cased host, without the port."""
+        """Return the lower-cased host, without the port and without IPv6 brackets."""
         return self._host
 
     def join(self, path: str) -> str:
