@@ -13,9 +13,17 @@ tool cannot tell them apart:
   corpus, deterministic per sub-question. The default, and what makes the loop
   runnable in CI and on a laptop with no credential. It is a fixture, not a
   simulation: it supports no claim about retrieval quality.
-* :class:`HttpRetrievalBackend` — opt-in, built only when ``PRODUCTION_RAG_URL``
-  names a running production-rag instance. No test reaches for it, because no
-  test should need a service started to pass.
+* :class:`~agentic_rag.tools.http_p1.HttpRetrievalBackend` — opt-in, built only
+  when ``PRODUCTION_RAG_URL`` names a running production-rag instance. No default
+  test reaches for it, because no default test should need a service started to
+  pass. It lives in :mod:`agentic_rag.tools.http_p1`, beside the pinned upstream
+  contract it speaks, and is re-exported here so every existing import keeps
+  working.
+
+:class:`~agentic_rag.tools.passage.Passage` moved to its own module for one
+mechanical reason: the HTTP backend produces passages and this module consumes
+the backend, so a shared leaf is what keeps the two from importing each other.
+It is re-exported here, unchanged.
 """
 
 from __future__ import annotations
@@ -24,42 +32,18 @@ import os
 from collections.abc import Sequence
 from typing import Final, Protocol, runtime_checkable
 
-import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
 from agentic_rag.text import keyword_terms
 from agentic_rag.tools.base import ToolError
+from agentic_rag.tools.http_p1 import HttpRetrievalBackend
+from agentic_rag.tools.passage import Passage
 
 PRODUCTION_RAG_URL_ENV: Final = "PRODUCTION_RAG_URL"
 """Environment variable that opts the tool into the hosted retrieval service."""
 
-QUERY_PATH: Final = "/v1/query"
-"""Versioned query route production-rag already publishes."""
-
 DEFAULT_TOP_K: Final = 5
 """Passages one retrieval step returns unless the caller asks for another number."""
-
-
-class Passage(BaseModel):
-    """One retrieved chunk of evidence, with the identity needed to cite it.
-
-    Text, a stable chunk id and a corpus-relative source path are the three
-    fields a citation needs to be checkable by someone who does not trust the
-    agent. Frozen, because a passage is what a backend returned: evidence that
-    can be edited afterwards is evidence a citation cannot be checked against.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    chunk_id: str = Field(min_length=1, description="Stable identifier of the supporting chunk.")
-    source_path: str = Field(description="Corpus-relative path of the document it came from.")
-    text: str = Field(description="Passage text exactly as the backend returned it.")
-    rank: int = Field(ge=1, description="Position of the passage in the ranking it arrived in.")
-    title: str | None = Field(default=None, description="Source document title, when known.")
-    heading_path: str | None = Field(
-        default=None,
-        description="Heading ancestry within the source document, when known.",
-    )
 
 
 class RetrieveRequest(BaseModel):
@@ -67,7 +51,9 @@ class RetrieveRequest(BaseModel):
 
     Unknown fields are rejected so a misspelled control never silently falls back
     to a default — the failure mode where a run looks fine and answers a slightly
-    different question than the one that was configured.
+    different question than the one that was configured. It is also what makes
+    "a research question can never carry a URL" a property of the type rather
+    than a habit: there is no field to put one in, and inventing one raises.
     """
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
@@ -116,6 +102,11 @@ class RetrievalBackend(Protocol):
     search and a name to record, and nothing about where the passages came from.
     That is what lets a free deterministic stand-in and a real service be
     interchangeable without the loop noticing.
+
+    Deliberately narrow. A backend that knows *why* it found nothing — the HTTP
+    one does — exposes that on its own type rather than here, because widening
+    this protocol would make every backend answer a question only one of them
+    can answer.
     """
 
     @property
@@ -257,125 +248,6 @@ class FakeRetrievalBackend:
         ]
 
 
-class _Citation(BaseModel):
-    """One citation as production-rag serialises it."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    chunk_id: str
-    source_path: str
-    text: str
-    rank: int = Field(ge=1)
-    title: str | None = None
-    heading_path: str | None = None
-
-
-class _QueryEnvelope(BaseModel):
-    """The part of ``POST /v1/query`` this backend consumes.
-
-    Extra fields are ignored rather than forbidden: the service is free to grow
-    its response, and a client that breaks on a new field turns an additive
-    change upstream into an outage here.
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    citations: list[_Citation] = Field(default_factory=list)
-    refused: bool = False
-
-
-class HttpRetrievalBackend:
-    """Opt-in backend that speaks to a running production-rag instance.
-
-    It reads ``citations`` and ignores ``answer``: each citation is already a
-    passage with a chunk id and a source path, while the generated answer is the
-    inner service's single pass — treating it as evidence would make this agent a
-    paraphraser of another model's output. ``refused: true`` is information, not a
-    failure; it comes back as no evidence, which is a gap ``critique`` can name.
-
-    The request pins the free providers on both sides, so opting into the service
-    does not silently opt into a billed model. ``POST /v1/query`` publishes no
-    ``top_k`` control, so the cap is applied to what came back — that trims the
-    transfer, not the service's work, and closing the gap needs a parameter
-    upstream.
-    """
-
-    name = "production-rag"
-
-    def __init__(
-        self,
-        base_url: str,
-        *,
-        timeout: float = 10.0,
-        client: httpx.Client | None = None,
-    ) -> None:
-        """Point the backend at ``base_url``.
-
-        Args:
-            base_url: Root of the production-rag instance, e.g. ``http://127.0.0.1:8000``.
-            timeout: Seconds to wait for one query, used when this backend owns the
-                client.
-            client: Caller-owned client. Supplied, it is used and never closed here;
-                omitted, one client is created and closed per call.
-        """
-        self._base_url = base_url.rstrip("/")
-        self._timeout = timeout
-        self._client = client
-
-    @property
-    def query_url(self) -> str:
-        """Return the fully qualified query endpoint this backend calls."""
-        return f"{self._base_url}{QUERY_PATH}"
-
-    def search(self, sub_question: str, *, top_k: int) -> list[Passage]:
-        """Query the instance and return its resolved citations as passages.
-
-        Args:
-            sub_question: Sub-question to send.
-            top_k: Upper bound applied to the citations that come back.
-
-        Returns:
-            Ranked passages, empty when the service refused or cited nothing.
-
-        Raises:
-            ToolError: The service was unreachable, answered with an error status,
-                or sent a body this backend cannot read.
-        """
-        if self._client is not None:
-            return self._query(self._client, sub_question, top_k)
-        with httpx.Client(timeout=self._timeout) as client:
-            return self._query(client, sub_question, top_k)
-
-    def _query(self, client: httpx.Client, sub_question: str, top_k: int) -> list[Passage]:
-        """Run one request and map the response onto passages."""
-        payload = {
-            "question": sub_question,
-            "mode": "hybrid",
-            "llm": "fake",
-            "embedder": "fake",
-        }
-        try:
-            response = client.post(self.query_url, json=payload, timeout=self._timeout)
-            response.raise_for_status()
-            envelope = _QueryEnvelope.model_validate(response.json())
-        except httpx.HTTPError as error:
-            raise ToolError(f"{self.query_url} did not answer: {error}") from error
-        except (ValueError, ValidationError) as error:
-            raise ToolError(f"{self.query_url} sent an unreadable body: {error}") from error
-
-        return [
-            Passage(
-                chunk_id=citation.chunk_id,
-                source_path=citation.source_path,
-                text=citation.text,
-                rank=citation.rank,
-                title=citation.title,
-                heading_path=citation.heading_path,
-            )
-            for citation in envelope.citations[:top_k]
-        ]
-
-
 class RetrieveTool:
     """Run one sub-question against a retrieval backend and return cited passages.
 
@@ -424,14 +296,28 @@ class RetrieveTool:
 def build_retrieve_tool(backend: RetrievalBackend | None = None) -> RetrieveTool:
     """Build the retrieve tool, on the free path unless the hosted one is opted into.
 
+    The address of the hosted service comes from the environment and from nowhere
+    else. In particular it never comes from a research question: this function
+    takes no URL, :class:`RetrieveRequest` has no field for one, and the tool is
+    wired once, before any question is asked.
+
     Args:
         backend: Explicit backend. Supplied, the environment is not read at all,
             which is what tests want.
 
     Returns:
-        A tool bound to ``backend``; otherwise to :class:`HttpRetrievalBackend`
-        when ``PRODUCTION_RAG_URL`` is set to a non-empty value, and to
+        A tool bound to ``backend``; otherwise to
+        :class:`~agentic_rag.tools.http_p1.HttpRetrievalBackend` when
+        ``PRODUCTION_RAG_URL`` is set to a non-empty value, and to
         :class:`FakeRetrievalBackend` in every other case.
+
+    Raises:
+        InvalidServiceUrlError: ``PRODUCTION_RAG_URL`` is set to something this
+            client will not dial. Raised here, at wiring time, rather than
+            degrading to the fake: a run that silently answered from a committed
+            five-document fixture when the operator asked for a real corpus is a
+            run whose results mean nothing, and nothing in the output would say
+            so.
     """
     if backend is not None:
         return RetrieveTool(backend)
@@ -439,3 +325,20 @@ def build_retrieve_tool(backend: RetrievalBackend | None = None) -> RetrieveTool
     if base_url:
         return RetrieveTool(HttpRetrievalBackend(base_url))
     return RetrieveTool(FakeRetrievalBackend())
+
+
+__all__ = [
+    "DEFAULT_CORPUS",
+    "DEFAULT_TOP_K",
+    "PRODUCTION_RAG_URL_ENV",
+    "Document",
+    "FakeRetrievalBackend",
+    "HttpRetrievalBackend",
+    "Passage",
+    "RetrievalBackend",
+    "RetrieveRequest",
+    "RetrieveResult",
+    "RetrieveTool",
+    "ToolError",
+    "build_retrieve_tool",
+]

@@ -176,6 +176,7 @@ def test_the_http_backend_posts_the_free_providers_to_the_query_route() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         seen["url"] = str(request.url)
         seen["body"] = json.loads(request.content)
+        seen["request_id"] = request.headers.get("X-Request-ID")
         return httpx.Response(200, json={"answer": "a", "refused": False, "citations": [CITATION]})
 
     with mock_client(handler) as client:
@@ -186,9 +187,11 @@ def test_the_http_backend_posts_the_free_providers_to_the_query_route() -> None:
     assert seen["body"] == {
         "question": "hybrid retrieval",
         "mode": "hybrid",
+        "rerank": "off",
         "llm": "fake",
         "embedder": "fake",
     }
+    assert seen["request_id"] == backend.request_id
     assert [passage.chunk_id for passage in passages] == ["remote-1"]
     assert passages[0].heading_path == "Retrieval > Hybrid search"
 
