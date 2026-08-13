@@ -61,6 +61,12 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "D"]
 ignore = ["D203", "D213"]
 
+# Google-style docstring sections, matching series #1 (production-rag). Without a
+# declared convention ruff enforces every style's rules at once, and D413 fires on
+# an ``Args:``/``Returns:`` block that ends where the docstring ends.
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN", "D"]
 
