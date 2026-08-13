@@ -218,7 +218,46 @@ def test_capability_missing_is_not_a_silent_fake_fallback(
 
     assert set(body) == ERROR_FIELDS
     assert "report" not in body
-    assert "fake" not in body["error"].lower().replace("free retriever", "")
+    assert "citations" not in body
+
+
+def failing_factory(error: Exception) -> Any:
+    """Return a retriever factory whose tool raises ``error`` on its first search."""
+
+    class FailingBackend:
+        name = "production-rag"
+
+        def search(self, sub_question: str, *, top_k: int) -> list[Any]:
+            raise error
+
+    def factory(choice: RetrieverChoice) -> RetrieveTool:
+        return RetrieveTool(FailingBackend())
+
+    return factory
+
+
+def test_a_backend_that_fails_inside_the_real_loop_is_backend_unavailable() -> None:
+    """The whole path, not a stubbed runner: the tool raises where a real one would."""
+    service = ResearchService(retriever_factory=failing_factory(ToolError("query refused")))
+
+    with client_over(service) as c:
+        response = ask(c, question=ANSWERABLE)
+
+    assert response.status_code == 503
+    assert response.json()["error_type"] == ErrorType.BACKEND_UNAVAILABLE.value
+    assert "query refused" not in response.text
+
+
+def test_a_defect_inside_a_backend_is_not_dressed_up_as_a_backend_failure() -> None:
+    """A TypeError from a backend is this codebase's bug, not the other service's."""
+    service = ResearchService(retriever_factory=failing_factory(TypeError("bad argument")))
+
+    with client_over(service, raise_server_exceptions=False) as c:
+        response = ask(c, question=ANSWERABLE)
+
+    assert response.status_code == 500
+    assert response.json()["error_type"] == ErrorType.INTERNAL_ERROR.value
+    assert "bad argument" not in response.text
 
 
 def test_a_backend_failure_is_503_without_the_backend_message() -> None:

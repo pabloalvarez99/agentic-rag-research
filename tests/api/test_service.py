@@ -141,11 +141,8 @@ def test_a_terminal_run_without_a_report_cannot_be_reported() -> None:
         render_response(state, request_id="run-42")
 
 
-@pytest.mark.parametrize("status", list(ResearchStatus))
+@pytest.mark.parametrize("status", [s for s in ResearchStatus if s is not ResearchStatus.RUNNING])
 def test_every_status_the_loop_can_end_in_is_reportable(status: ResearchStatus) -> None:
-    if status is ResearchStatus.RUNNING:
-        pytest.skip("running is not a terminal status")
-
     response = render_response(build_state(status=status), request_id="run-42")
 
     assert response.status is status
