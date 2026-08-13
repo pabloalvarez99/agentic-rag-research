@@ -1,8 +1,11 @@
-# Architecture — mostly planned, partly implemented
+# Architecture — the loop is code, the service around it is not
 
-Status: **M1**. The only route is still `GET /health`. The retrieval boundary and
-the `retrieve` tool below are code; `plan`, `critique`, the loop that calls them
-and the trace are not. The milestones table says which parts are absent.
+Status: **M2**. The only route is still `GET /health`, but everything below the
+route is now implemented: `plan`, `retrieve`, `critique`, the bounded loop that
+calls them, the stop rule, the refusal path, the report with citations, and the
+trace. `run_research()` runs the whole thing in-process on the free path. What is
+still absent is the way in — `POST /v1/research` and the CLI — and the offline
+evaluation. The milestones table says which parts those are.
 
 The question this project exists to answer: **what does a bounded agent loop add
 over a single retrieval pass, and how would you tell?** The design below is
@@ -90,6 +93,84 @@ call site:
   the retrieval boundary below.
 - **No sub-agent spawning.** One agent, one loop. Orchestration between agents
   is series project #3 and does not leak backwards into this one.
+
+## The loop as code (M2)
+
+`run_research(question, tool=..., max_steps=..., top_k=...)` in
+`agentic_rag.agent.graph` returns a finished `ResearchState`. The nodes are thin
+— each one calls a pure function that is tested on its own — and all the state
+transitions live on `ResearchState`, which is the only thing that can change a
+run.
+
+### The deterministic core
+
+| Component | Rule | Where |
+| --- | --- | --- |
+| `plan_question` | Question under 80 characters is one sub-question; otherwise split on `and` / `then` / `?`, drop fragments carrying no scoring term, drop repeats, cap at 3. | `agent/planner.py` |
+| `critique` | `score = distinct passages + question terms they cover`; sufficient at `score >= 3` with at least one passage; otherwise name gaps. | `agent/critic.py` |
+| `synthesize` | One bullet per passage, marked `[n]` in the order evidence was first seen. No paraphrase, no model. | `agent/synthesizer.py` |
+| `decide_outcome` | Pure function of three booleans: sufficient, has evidence, budget spent. | `agent/graph.py` |
+
+None of these calls a provider, free or otherwise. The score is a **stop rule,
+not a quality measure**: it is written to be predictable and recomputable by
+hand from the trace, and it is not tuned against a labelled set, because no
+labelled set exists yet.
+
+### How a run ends
+
+| Status | When | Report |
+| --- | --- | --- |
+| `done` | The critique found the evidence sufficient. | Findings, each a cited passage. |
+| `budget_exhausted` | Evidence was gathered, never became sufficient, and the step budget ran out. | Partial: the grounded findings **and** the gaps it never closed. |
+| `refused` | Nothing was retrieved (`no_evidence`), or what was retrieved is too thin to answer from and no further retrieval could help (`insufficient_evidence`). | The refusal, its named gaps, and whatever passages were gathered — still cited. |
+| `degraded` | Declared, not yet produced. Reserved for a run that finished around a tool failure. | — |
+
+The `insufficient_evidence` refusal exists so the status field cannot lie: a run
+that stopped with steps to spare must not report `budget_exhausted`, which is the
+first field an operator would check when asking why a run was thin.
+
+### Two independent bounds
+
+Termination does not depend on the critic being right:
+
+1. **The step budget** is enforced inside `ResearchState.record_retrieval`, not
+   by the loop's condition. Recording a step past the budget raises rather than
+   being silently dropped, because a run that quietly stops recording still looks
+   complete in its trace.
+2. **No sub-question is retrieved for twice.** Follow-ups proposed by a critique
+   are checked against everything already requested, so the queue strictly
+   shrinks. Without that rule, a gap no retrieval can close would be re-issued
+   until the budget ran out, and every thin run would report `budget_exhausted`
+   whatever actually stopped it.
+
+### The trace
+
+Six event kinds, in the order a complete run emits them: `plan_created`,
+`tool_call`, `tool_result`, `critique`, `synthesize`, `stop`. Every run ends with
+`stop`, including a refusal — the run that refused is the one most worth reading
+later.
+
+The trace carries **no timestamps**. A free-path run is deterministic, so two
+runs of the same question produce byte-identical traces and a test can assert on
+one directly. Wall-clock timings are an observability concern and arrive with the
+HTTP route, where there is a request id to bind them to.
+
+The `critique` event carries the whole arithmetic — passage count, term overlap,
+score, verdict — so a stop decision is reproducible from the trace alone. The
+`tool_result` event separates the ids a step returned from the ids that were new,
+which is what distinguishes a step that re-retrieved known passages from one that
+found nothing.
+
+### Why there is no graph library yet
+
+LangGraph is the obvious fit and is deliberately not a dependency at M2. Every
+node here is a two-line call into a pure function that is already tested
+independently; a framework would add a dependency, an import-time registry and a
+second place to read the control flow, in exchange for a picture of a loop that
+fits on one screen. The seam it would occupy is the node functions in
+`agent/graph.py`, which take a state and return nothing — adopting one later is a
+rewiring, not a rewrite. The moment that changes is branching the loop cannot
+express as a `while`: parallel sub-question fan-out, or checkpoint and resume.
 
 ## The retrieval boundary
 
@@ -237,13 +318,18 @@ alternatives, and the conditions under which the paid path opens are in
 | --- | --- | --- |
 | M0 | Package, liveness probe, test harness, this document | **LIVE** |
 | M1 | `retrieve` tool over the `RetrievalBackend` seam, with the fake backend, and `ResearchState` carrying the step budget | **LIVE** |
-| M2 | `plan` tool and the step budget | planned |
-| M3 | `critique` tool, the stop rule, and the refusal path | planned |
-| M4 | Trace of the loop: every step, its tool, its evidence, its cost | planned |
-| M5 | HTTP backend against a running production-rag instance | client written at M1, never yet run against a real instance |
-| M6 | Offline evaluation of the loop against a fixed question set, paired against the single pass | planned |
+| M2 | `plan`, the loop, and the step budget it spends | **LIVE** |
+| M3 | `critique`, the stop rule, the refusal path, and the report with citations | **LIVE** |
+| M4 | Trace of the loop: every step, its tool, its evidence, how it ended | **LIVE** |
+| M5 | `POST /v1/research` and a CLI over `run_research()` | planned |
+| M6 | HTTP backend against a running production-rag instance | client written at M1, never yet run against a real instance |
+| M7 | Offline evaluation of the loop against a fixed question set, paired against the single pass | planned |
 
-M1 through M4 need no credential and no running retrieval service. That is the
+M2 through M4 landed together, because a plan with no critic has no stop rule and
+a stop rule with no trace cannot be audited — shipping them apart would have
+meant publishing a loop that could not say why it stopped.
+
+M1 through M5 need no credential and no running retrieval service. That is the
 ordering the ADR argues for: the loop is complete and measurable on the free
 path before anything is billed.
 
@@ -254,14 +340,28 @@ path before anything is billed.
   than by whoever writes the loop — a budget checked at the call site has as many
   rules as it has call sites. Whether a per-sub-question budget is also needed
   stays open until `plan` exists.
-- Does `critique` see the retrieved passages, or only the claims made from them?
-  Seeing both is more capable and makes the critique harder to trust.
+- ~~Does `critique` see the retrieved passages, or only the claims made from
+  them?~~ Answered at M2: the passages, because at M2 there are no claims — the
+  synthesiser selects and marks passages rather than writing prose about them.
+  The question returns the moment a model writes the report, and the answer will
+  have to change with it.
+- ~~Is a repeated sub-question a bug or a signal?~~ Answered at M2, mechanically:
+  a sub-question is never retrieved for twice. A retry with a narrower framing is
+  a *different* sub-question and is allowed; an identical one returns identical
+  passages, so paying a step for it is a loop that has stopped making progress.
 - What does the trace have to record for a failed run to be diagnosable a week
-  later without rerunning it?
-- Is a repeated sub-question a bug or a signal? `plan` reissuing a sub-question
-  after `critique` names a gap may be a legitimate retry with a narrower framing,
-  or a loop that has stopped making progress. The stop rule needs an answer that
-  does not require reading the prose.
+  later without rerunning it? M2 records the plan, every call and result, the
+  full critique arithmetic and the stop reason. Untested against a real
+  diagnosis, because the free path has not yet produced a failure anyone needed
+  to diagnose.
+- What ends a run whose tool *fails*, as opposed to one that finds nothing? The
+  `degraded` status is declared and unused: no free-path tool can fail that way,
+  and inventing the handling before the HTTP backend runs against a real instance
+  would be guessing at the failure it has to survive.
+- The sufficiency threshold is a constant with no evidence behind it. It stops
+  runs at a defensible point on the free path and nothing more; it stays
+  unjustifiable until the evaluation milestone gives it a question set to be
+  wrong about.
 - What is the mechanical predicate for "the single pass provably cannot answer
   this"? Multi-document evidence is one candidate; a fact that only surfaces
   after a first retrieval narrows the question is another. Neither is settled.

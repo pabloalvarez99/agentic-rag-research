@@ -21,13 +21,13 @@ tool cannot tell them apart:
 from __future__ import annotations
 
 import os
-import re
 from collections.abc import Sequence
 from typing import Final, Protocol, runtime_checkable
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from agentic_rag.text import keyword_terms
 from agentic_rag.tools.base import ToolError
 
 PRODUCTION_RAG_URL_ENV: Final = "PRODUCTION_RAG_URL"
@@ -201,22 +201,6 @@ DEFAULT_CORPUS: Final[tuple[Document, ...]] = (
 )
 """The committed corpus. Five short passages, enough to exercise ranking and misses."""
 
-_WORD = re.compile(r"[a-z0-9]+")
-
-_STOPWORD_TEXT: Final = (
-    "a an the and or but if is are was were be been being do does did of on in to for "
-    "from with by at as it its that this these those what which who whom how why when where"
-)
-"""Words carried by nearly every passage. Left in, they would score noise as overlap."""
-
-_STOPWORDS: Final[frozenset[str]] = frozenset(_STOPWORD_TEXT.split())
-
-
-def _terms(text: str) -> set[str]:
-    """Return the scoring terms of a string: lowercased words, stopwords removed."""
-    return {word for word in _WORD.findall(text.lower()) if word not in _STOPWORDS}
-
-
 class FakeRetrievalBackend:
     """Deterministic in-process backend over the committed corpus.
 
@@ -252,11 +236,11 @@ class FakeRetrievalBackend:
         Returns:
             Ranked passages, or an empty list when nothing overlaps.
         """
-        terms = _terms(sub_question)
+        terms = keyword_terms(sub_question)
         scored: list[tuple[int, int, Document]] = []
         for position, document in enumerate(self._documents):
             haystack = f"{document.title or ''} {document.heading_path or ''} {document.text}"
-            overlap = len(terms & _terms(haystack))
+            overlap = len(terms & keyword_terms(haystack))
             if overlap:
                 scored.append((-overlap, position, document))
         scored.sort()

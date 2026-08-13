@@ -13,32 +13,57 @@ re-litigate those decisions and does not reimplement that retrieval stack; it co
 it and asks the next question: **what does an agent add over a single retrieval pass,
 and how do you tell?**
 
-## Status: M1 — the `retrieve` tool
+## Status: M2 — the loop runs
 
-`GET /health` is still the only route. What M1 adds is a library: the `retrieve` tool,
-the `RetrievalBackend` seam behind it with its fake backend, and the state a run carries.
-`plan`, `critique` and the loop that calls them are described in
-[docs/architecture.md](docs/architecture.md) and are **not implemented**. Nothing here
-reads an API key, and the default path contacts nothing.
+`GET /health` is still the only route, but the loop underneath it is complete as a
+library: `plan → retrieve → critique`, bounded by a step budget, ending in a report
+whose every marker resolves to a passage that was actually retrieved — or in an explicit
+refusal. `POST /v1/research` and the CLI are **not implemented** and are the next
+milestone ([docs/architecture.md](docs/architecture.md)). Nothing here reads an API key,
+and the default path contacts nothing.
 
 ```python
-from agentic_rag.agent import ResearchState
-from agentic_rag.tools import RetrieveRequest, build_retrieve_tool
+from agentic_rag.agent import run_research
 
-tool = build_retrieve_tool()  # free path: the committed in-process corpus
-state = ResearchState(question="What does hybrid retrieval buy over dense alone?")
+state = run_research("What does hybrid retrieval buy over dense retrieval alone?")
 
-request = RetrieveRequest(question="hybrid retrieval dense sparse rankings", top_k=3)
-state.record_retrieval(request, tool.run(request))
+state.status         # <ResearchStatus.DONE: 'done'>
+state.stop_reason    # 'evidence_sufficient'
+state.steps_taken    # 1 of a budget of 4
+state.evidence_ids   # ('hybrid-retrieval-1', 'reranking-1')
+[c.marker for c in state.citations]     # [1, 2]
+[e.event for e in state.trace]
+# ['plan_created', 'tool_call', 'tool_result', 'critique', 'synthesize', 'stop']
+```
 
-state.evidence_ids  # ('hybrid-retrieval-1', 'reranking-1')
-state.budget_remaining  # 3 of 4 steps left
+```text
+Question: What does hybrid retrieval buy over dense retrieval alone?
+
+Findings, each one a retrieved passage:
+
+- Hybrid retrieval runs a dense vector search and a sparse keyword search over the
+  same corpus and fuses the two rankings with reciprocal rank fusion, so a query that
+  only one of them understands still returns evidence. [1]
+- A cross-encoder reranker reads the query and a candidate passage together and
+  reorders the shortlist. [2]
+```
+
+Ask it something the corpus cannot answer and it says so, naming what it looked for:
+
+```python
+state = run_research("What were the quarterly revenues in Patagonia?", max_steps=3)
+
+state.status                          # <ResearchStatus.REFUSED: 'refused'>
+state.stop_reason                     # 'no_evidence'
+state.citations                       # []
+[gap.detail for gap in state.gaps]
+# ["no passage was retrieved for the sub-question 'What were the quarterly revenues
+#   in Patagonia?'", ..., 'no retrieved passage mentions: patagonia, quarterly, revenues']
 ```
 
 Set `PRODUCTION_RAG_URL` to aim the same tool at a running production-rag instance
 (`POST /v1/query`, free providers pinned on both sides). Unset — the default, and what
-every test runs on — retrieval is in-process. The status line becomes **M2** when `plan`
-lands.
+every test runs on — retrieval is in-process.
 
 ## The loop
 
@@ -65,8 +90,24 @@ trace: every step, its tool, its evidence, its cost — written whichever way th
 
 Only `critique` can end the loop, so there is one place to audit when a run ends
 wrongly. The bound is the point: an agent without a step budget and a stop rule is a
-way to spend money on tokens until something times out. Tool boundaries, the retrieval
-interface, and the milestone order are in [docs/architecture.md](docs/architecture.md).
+way to spend money on tokens until something times out.
+
+Every run reaches one of three terminal states, and the status field is not allowed to
+flatter the run:
+
+| Status | When | What the report contains |
+| --- | --- | --- |
+| `done` | The evidence was sufficient. | Findings, each a cited passage. |
+| `budget_exhausted` | Evidence was gathered, never became sufficient, and the steps ran out. | The grounded findings **and** the gaps it never closed. |
+| `refused` | Nothing was retrieved, or what was is too thin to answer from. | The refusal, its named gaps, and any passages gathered — still cited. |
+
+Two independent bounds guarantee termination: the step budget, enforced inside the
+state rather than by the loop's condition, and the rule that no sub-question is ever
+retrieved for twice. The planner, the critic's score and the synthesiser are
+deterministic and call no provider — a run is byte-identical when repeated, traces
+included, which is what lets a test assert on one. Tool boundaries, the scoring rule,
+the trace's event set, and why there is no graph library yet are in
+[docs/architecture.md](docs/architecture.md).
 
 ## Hello, free path (no keys)
 
@@ -123,9 +164,9 @@ will not publish a quality number produced by it.
 
 | Path | What lives there |
 | --- | --- |
-| `src/agentic_rag/` | The package. Today: the app factory and the liveness probe. |
+| `src/agentic_rag/` | The package. Today: the app factory, the liveness probe, and the tokeniser the fixture and the critic share. |
 | `src/agentic_rag/tools/` | The tool protocol, the `retrieve` tool, and its two backends. |
-| `src/agentic_rag/agent/` | The state a run carries: its step budget and its evidence. |
+| `src/agentic_rag/agent/` | The loop: `state` (budget, evidence, trace), `planner`, `critic`, `synthesizer`, `graph`. |
 | `tests/` | Offline tests. No network, no credentials. |
 | `docs/architecture.md` | The planned loop, its tool boundaries, the retrieval seam, and the milestones. |
 | `docs/adr/` | Decision records. [ADR-0001](docs/adr/0001-fake-first.md): why the free path is the default. |
