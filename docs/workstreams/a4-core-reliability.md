@@ -25,8 +25,16 @@ produce (`done`, `refused`, `budget_exhausted`), every stop reason it could prod
 re-runs each case and compares the dump, the key order of every object in it, and the event-name
 sequence of every trace.
 
-No test regenerates that file. A fixture a test can rewrite records what the code does today; it
-does not evidence that the code still does what it did yesterday.
+No test regenerates that file, and that is enforced rather than agreed: the fixture's content hash
+is pinned, so an accidental — or convenient — regeneration fails a test with the diff still on disk.
+A fixture a test can rewrite records what the code does today; it does not evidence that the code
+still does what it did yesterday. The hash is taken over the file's *text*, because `core.autocrlf`
+rewrites line endings on a Windows checkout and a byte hash would pin the fixture to one operating
+system for a reason that has nothing to do with compatibility.
+
+Regenerating it is a deliberate act with a documented command, kept for the day a milestone
+intentionally changes the successful path — and then says so, in its own report, alongside the new
+hash.
 
 ## 2. Invariants
 
@@ -207,11 +215,13 @@ and a test that changed the code it is measuring would prove nothing about the s
 
 ## 7. Compatibility evidence
 
-Four independent checks, because "additive" is a claim and each of these can falsify it on its own.
+Six independent checks, because "additive" is a claim and each of these can falsify it on its own.
 
 | Check | Result |
 |-------|--------|
 | The nine frozen dumps re-run and compared field by field, including the key order of every nested object and the event-name sequence of every trace | identical; the only difference anywhere is the new `steps[*].failure: null` key, named explicitly by the test rather than diffed loosely |
+| The fixture those dumps are compared against, pinned by content hash | unchanged since it was generated, before any production edit. Verified by tampering with the file and confirming the guard fires |
+| `verify_run` over each of the nine frozen shapes | no violations. The tamper tests prove the verifier catches what it should; this is the other direction — that it does not flag behaviour older than itself, which is the failure mode that made D5 visible |
 | `__all__` of `agentic_rag.agent` and `agentic_rag.tools`, and the members of `StopReason` and `TraceEventName`, compared against `0b86e96` | nothing removed, nothing renamed, relative order of pre-existing members preserved; 4 symbols and 2 literal members added |
 | Signatures of every public function this lane touched | `decide_outcome` and `synthesize` gained keyword-only arguments with defaults; `retrieve_node` widened `None` to `bool`. No existing caller reads that return value |
 | The 97 pre-existing tests | unmodified — no file outside `tests/reliability/` appears in the diff — and passing |
