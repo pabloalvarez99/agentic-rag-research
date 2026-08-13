@@ -28,19 +28,19 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-# The scaffold serves one HTTP surface, so the base set is the HTTP surface.
-# Retrieval, planning and critique dependencies land with the code that needs
-# them: a dependency declared before its first import is a dependency nobody
-# can tell is still required.
+# Dependencies land with the code that needs them: a dependency declared before
+# its first import is a dependency nobody can tell is still required. httpx
+# arrives with M1 because the retrieve tool's opt-in HTTP path imports it (and
+# the test client has always used it).
 dependencies = [
     "fastapi>=0.115",
+    "httpx>=0.27",
     "uvicorn[standard]>=0.32",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
-    "httpx>=0.27",
     "ruff>=0.7",
     "mypy>=1.13",
 ]

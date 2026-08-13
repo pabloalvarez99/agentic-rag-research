@@ -1,7 +1,8 @@
-# Architecture — planned, not implemented
+# Architecture — mostly planned, partly implemented
 
-Status: **scaffold**. The only route that exists is `GET /health`. Everything on
-this page is a plan, and the milestones below say which parts are absent.
+Status: **M1**. The only route is still `GET /health`. The retrieval boundary and
+the `retrieve` tool below are code; `plan`, `critique`, the loop that calls them
+and the trace are not. The milestones table says which parts are absent.
 
 The question this project exists to answer: **what does a bounded agent loop add
 over a single retrieval pass, and how would you tell?** The design below is
@@ -105,8 +106,10 @@ class RetrievalBackend(Protocol):
 
 This sits *behind* the `retrieve` tool rather than replacing it: the tool is the
 loop-facing surface, the backend is the outbound one. Both are protocols so a
-test supplies either without a container or a key. The shape above is planned;
-M1 is where it becomes code.
+test supplies either without a container or a key. As of M1 that shape is code:
+`RetrievalBackend` and `RetrieveTool` in `agentic_rag.tools.retrieve`, with the
+backend chosen by `build_retrieve_tool()` — the fake unless `PRODUCTION_RAG_URL`
+is set.
 
 A `Passage` carries the text, a stable chunk id, and a corpus-relative source
 path — the three fields a citation needs to be checkable by someone who does not
@@ -233,11 +236,11 @@ alternatives, and the conditions under which the paid path opens are in
 | Milestone | Contents | State |
 | --- | --- | --- |
 | M0 | Package, liveness probe, test harness, this document | **LIVE** |
-| M1 | `retrieve` tool over the `RetrievalBackend` seam, with the fake backend | planned |
+| M1 | `retrieve` tool over the `RetrievalBackend` seam, with the fake backend, and `ResearchState` carrying the step budget | **LIVE** |
 | M2 | `plan` tool and the step budget | planned |
 | M3 | `critique` tool, the stop rule, and the refusal path | planned |
 | M4 | Trace of the loop: every step, its tool, its evidence, its cost | planned |
-| M5 | HTTP backend against a running production-rag instance | planned |
+| M5 | HTTP backend against a running production-rag instance | client written at M1, never yet run against a real instance |
 | M6 | Offline evaluation of the loop against a fixed question set, paired against the single pass | planned |
 
 M1 through M4 need no credential and no running retrieval service. That is the
@@ -246,7 +249,11 @@ path before anything is billed.
 
 ## Open questions
 
-- Where does the step budget live — per question, per run, or both?
+- ~~Where does the step budget live — per question, per run, or both?~~ Answered
+  at M1, provisionally: per run, in `ResearchState`, enforced by the state rather
+  than by whoever writes the loop — a budget checked at the call site has as many
+  rules as it has call sites. Whether a per-sub-question budget is also needed
+  stays open until `plan` exists.
 - Does `critique` see the retrieved passages, or only the claims made from them?
   Seeing both is more capable and makes the critique harder to trust.
 - What does the trace have to record for a failed run to be diagnosable a week

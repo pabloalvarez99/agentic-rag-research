@@ -13,15 +13,32 @@ re-litigate those decisions and does not reimplement that retrieval stack; it co
 it and asks the next question: **what does an agent add over a single retrieval pass,
 and how do you tell?**
 
-## Status: scaffold (M0)
+## Status: M1 — the `retrieve` tool
 
-`GET /health` is the only route that exists. The agent loop is described in
-[docs/architecture.md](docs/architecture.md) and is **not implemented**. Nothing here
-reads an API key, and no code path contacts a provider.
+`GET /health` is still the only route. What M1 adds is a library: the `retrieve` tool,
+the `RetrievalBackend` seam behind it with its fake backend, and the state a run carries.
+`plan`, `critique` and the loop that calls them are described in
+[docs/architecture.md](docs/architecture.md) and are **not implemented**. Nothing here
+reads an API key, and the default path contacts nothing.
 
-The status line becomes **M1** when the `retrieve` tool lands over the retrieval
-boundary with its fake backend — that is the next milestone, and it needs no credential
-and no running retrieval service.
+```python
+from agentic_rag.agent import ResearchState
+from agentic_rag.tools import RetrieveRequest, build_retrieve_tool
+
+tool = build_retrieve_tool()  # free path: the committed in-process corpus
+state = ResearchState(question="What does hybrid retrieval buy over dense alone?")
+
+request = RetrieveRequest(question="hybrid retrieval dense sparse rankings", top_k=3)
+state.record_retrieval(request, tool.run(request))
+
+state.evidence_ids  # ('hybrid-retrieval-1', 'reranking-1')
+state.budget_remaining  # 3 of 4 steps left
+```
+
+Set `PRODUCTION_RAG_URL` to aim the same tool at a running production-rag instance
+(`POST /v1/query`, free providers pinned on both sides). Unset — the default, and what
+every test runs on — retrieval is in-process. The status line becomes **M2** when `plan`
+lands.
 
 ## The loop
 
@@ -107,10 +124,12 @@ will not publish a quality number produced by it.
 | Path | What lives there |
 | --- | --- |
 | `src/agentic_rag/` | The package. Today: the app factory and the liveness probe. |
+| `src/agentic_rag/tools/` | The tool protocol, the `retrieve` tool, and its two backends. |
+| `src/agentic_rag/agent/` | The state a run carries: its step budget and its evidence. |
 | `tests/` | Offline tests. No network, no credentials. |
 | `docs/architecture.md` | The planned loop, its tool boundaries, the retrieval seam, and the milestones. |
 | `docs/adr/` | Decision records. [ADR-0001](docs/adr/0001-fake-first.md): why the free path is the default. |
-| `.env.example` | Variable names for a future opt-in paid path. Never values. |
+| `.env.example` | Variable names for the opt-in paths: a running retrieval service, a hosted provider. Never values. |
 
 ## License
 
