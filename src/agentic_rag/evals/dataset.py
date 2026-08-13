@@ -654,11 +654,11 @@ def load_dataset(
 
 
 def file_digest(path: Path | str) -> str:
-    """Return the SHA-256 of a dataset file, as lowercase hex.
+    r"""Return the SHA-256 of a dataset file, as lowercase hex.
 
-    Line endings are normalised to ``\\n`` before digesting. The dataset is a text
-    file under version control, so a clone on Windows holds ``\\r\\n`` where a clone
-    on Linux holds ``\\n``: the same dataset, different bytes. Digesting the raw
+    Line endings are normalised to ``\n`` before digesting. The dataset is a text
+    file under version control, so a clone on Windows holds ``\r\n`` where a clone
+    on Linux holds ``\n``: the same dataset, different bytes. Digesting the raw
     bytes would make the artifact's dataset identity depend on the checkout rather
     than on the curation, and two honest clones would disagree about which file
     they scored.
