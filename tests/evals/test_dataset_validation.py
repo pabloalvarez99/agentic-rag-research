@@ -19,6 +19,7 @@ from agentic_rag.evals.dataset import (
     DATASET_SCHEMA_VERSION,
     DatasetInvalid,
     EvalCase,
+    file_digest,
     load_dataset,
     read_cases,
     validate_dataset,
@@ -278,3 +279,25 @@ def test_loading_a_broken_dataset_raises_rather_than_returning_it(tmp_path: Path
 def test_a_missing_dataset_raises_file_not_found(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         load_dataset(tmp_path / "absent.jsonl")
+
+
+def test_the_digest_survives_a_checkout_that_changes_line_endings(tmp_path: Path) -> None:
+    """The same dataset must have the same identity on Windows and on Linux."""
+    line = json.dumps(case_payload())
+    unix = tmp_path / "unix.jsonl"
+    unix.write_bytes(f"{line}\n".encode())
+    windows = tmp_path / "windows.jsonl"
+    windows.write_bytes(f"{line}\r\n".encode())
+    assert unix.read_bytes() != windows.read_bytes()
+    assert file_digest(unix) == file_digest(windows)
+
+
+def test_the_digest_moves_when_the_curation_moves(tmp_path: Path) -> None:
+    """Line endings are the only thing it forgives."""
+    first = tmp_path / "first.jsonl"
+    first.write_bytes((json.dumps(case_payload()) + "\n").encode())
+    second = tmp_path / "second.jsonl"
+    second.write_bytes(
+        (json.dumps(case_payload(question="Explain reranking.")) + "\n").encode()
+    )
+    assert file_digest(first) != file_digest(second)

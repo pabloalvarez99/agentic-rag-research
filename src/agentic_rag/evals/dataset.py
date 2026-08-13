@@ -654,7 +654,17 @@ def load_dataset(
 
 
 def file_digest(path: Path | str) -> str:
-    """Return the SHA-256 of a file's bytes, as lowercase hex.
+    """Return the SHA-256 of a dataset file, as lowercase hex.
+
+    Line endings are normalised to ``\\n`` before digesting. The dataset is a text
+    file under version control, so a clone on Windows holds ``\\r\\n`` where a clone
+    on Linux holds ``\\n``: the same dataset, different bytes. Digesting the raw
+    bytes would make the artifact's dataset identity depend on the checkout rather
+    than on the curation, and two honest clones would disagree about which file
+    they scored.
+
+    Nothing else is normalised. A changed question, a reordered line or a changed
+    expectation all move the digest.
 
     Args:
         path: File to digest.
@@ -662,7 +672,9 @@ def file_digest(path: Path | str) -> str:
     Returns:
         The hex digest, prefixed with the algorithm so an artifact says what it is.
     """
-    return f"sha256:{hashlib.sha256(Path(path).read_bytes()).hexdigest()}"
+    raw = Path(path).read_bytes()
+    normalised = raw.replace(b"\r\n", b"\n")
+    return f"sha256:{hashlib.sha256(normalised).hexdigest()}"
 
 
 def dump_case(case: EvalCase) -> str:
