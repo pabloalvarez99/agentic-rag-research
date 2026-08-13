@@ -18,10 +18,13 @@ from reliability.test_compatibility import write_baseline; write_baseline()"
 
 Doing it on this branch would invalidate the evidence. It exists for the day a
 milestone intentionally changes the successful path and says so in its report.
+The content hash below is what makes that a check rather than a convention: a
+regenerated fixture fails here, with the diff still on disk to look at.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Final
@@ -30,8 +33,18 @@ import pytest
 
 from agentic_rag.agent import ResearchState, ResearchStatus, run_research
 from agentic_rag.tools import FakeRetrievalBackend, RetrieveTool
+from agentic_rag.verification import verify_run
 
 BASELINE_PATH: Final = Path(__file__).with_name("baseline_m2_runs.json")
+
+BASELINE_SHA256: Final = "fdac7f822ebf35fe0766729025d1d8729c23d3b1a568776f9e5e3f244b63afbf"
+"""Hash of the frozen fixture, over its text rather than its bytes.
+
+`core.autocrlf` rewrites line endings on a Windows checkout, so hashing the raw
+bytes would pin the fixture to one operating system and fail in CI for a reason
+that has nothing to do with compatibility. Reading it as text normalises the
+newlines first.
+"""
 
 ADDITIVE_STEP_KEYS: Final = ("failure",)
 """Keys added to a step record by this lane. Absent from the M2 baseline."""
@@ -131,6 +144,31 @@ def test_the_only_addition_to_a_successful_step_is_the_absent_failure() -> None:
         assert added <= set(ADDITIVE_STEP_KEYS)
         for key in added:
             assert step[key] is None, "a successful step carries no failure"
+
+
+def test_the_frozen_baseline_is_the_one_that_was_frozen() -> None:
+    digest = hashlib.sha256(BASELINE_PATH.read_text("utf-8").encode("utf-8")).hexdigest()
+
+    assert digest == BASELINE_SHA256, (
+        "the compatibility fixture changed. If that was deliberate, the milestone that "
+        "changed the successful path has to say so in its report and update this hash; "
+        "if it was not, the diff is still on disk."
+    )
+
+
+@pytest.mark.parametrize("case", BASELINE_CASES, ids=lambda case: str(case["name"]))
+def test_a_frozen_successful_run_satisfies_every_invariant(case: dict[str, Any]) -> None:
+    """The verifier must not flag behaviour that predates it.
+
+    The tamper tests prove it catches what it should. This proves the other
+    direction, which is the one a new checker usually gets wrong: every shape M2
+    could produce comes back clean. That is not hypothetical — the marker-shape
+    defect was found exactly this way, by the verifier objecting to a run that
+    was otherwise ordinary.
+    """
+    report = verify_run(run_case(case))
+
+    assert report.ok, report.summary()
 
 
 def test_the_baseline_covers_every_terminal_status_m2_could_produce() -> None:
