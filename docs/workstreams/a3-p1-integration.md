@@ -109,6 +109,12 @@ different problems:
   to a chunk. The corpus may well contain the evidence and the grounding pipeline
   did not attach it.
 
+A refusal yields no evidence even if citations arrive with it. Upstream cannot
+produce that combination at the pinned tag, but a proxy, a cache or a later
+release can, and the two readings are not equally safe: passing the citations
+through would let the agent build a report on evidence the service itself said
+does not support an answer. `citations_returned` still records that they arrived.
+
 The distinction travels on `RemoteQueryOutcome.evidence_state`, reachable through
 `HttpRetrievalBackend.query()`. It is deliberately **not** on the
 `RetrievalBackend` protocol or on `RetrieveResult`: widening either would make
@@ -143,7 +149,7 @@ and nothing in its output would say so.
 | `tests/contracts/` | always, on every machine | nothing — no socket, no credential, no Docker |
 | `tests/integration/` | only when opted into | a running production-rag instance |
 
-`tests/contracts` (229 tests) covers the contract fixture and its drift
+`tests/contracts` (230 tests) covers the contract fixture and its drift
 detection, the mock-transport matrix, and URL safety. These never skip. Included:
 grounded 200, refusal, empty citations, additive fields, top-k caps, duplicate
 and oversized citations, Unicode source paths, trailing slashes, 400/401/403/404/

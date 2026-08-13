@@ -390,9 +390,20 @@ class HttpRetrievalBackend:
             ) from error
 
     def _outcome(self, response: P1QueryResponse, *, top_k: int) -> RemoteQueryOutcome:
-        """Project a validated response onto passages plus the reason for them."""
+        """Project a validated response onto passages plus the reason for them.
+
+        A refusal yields no evidence even if citations arrived with it. Upstream
+        cannot produce that combination at the pinned tag — a refused result has
+        an empty citation tuple by construction — but a proxy, a cache or a later
+        release can, and the two readings are not equally safe. Passing the
+        citations through would let the agent build a report on evidence the
+        service itself said does not support an answer; dropping them costs
+        nothing that was ever promised, and ``citations_returned`` still records
+        that they were there.
+        """
+        refused = response.evidence_state is EvidenceState.UPSTREAM_REFUSED
         return RemoteQueryOutcome(
-            passages=_to_passages(response.citations, top_k=top_k),
+            passages=() if refused else _to_passages(response.citations, top_k=top_k),
             evidence_state=response.evidence_state,
             refusal_reason=response.refusal_reason,
             citations_returned=len(response.citations),

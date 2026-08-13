@@ -334,6 +334,22 @@ def test_a_refusal_with_no_reason_field_is_still_a_refusal() -> None:
     assert outcome.refusal_reason is None
 
 
+def test_a_refusal_that_arrives_with_citations_anyway_still_yields_no_evidence() -> None:
+    """Impossible at the pinned tag; a proxy or a later release can produce it."""
+    body = {
+        "answer": "I cannot answer",
+        "refused": True,
+        "refusal_reason": "no_evidence",
+        "citations": [citation()],
+    }
+
+    outcome = backend(responds(httpx.Response(200, json=body))).query("q", top_k=5)
+
+    assert outcome.passages == ()
+    assert outcome.evidence_state is EvidenceState.UPSTREAM_REFUSED
+    assert outcome.citations_returned == 1
+
+
 def test_the_two_kinds_of_empty_are_distinguishable_from_the_outside() -> None:
     refused = backend(
         responds(httpx.Response(200, json={"answer": "", "refused": True}))
