@@ -231,6 +231,19 @@ Every row is an automated test in `tests/api/` or `tests/cli/`.
 | CLI exit codes | each documented code produced by the case that owns it |
 | CLI as a module | `python -m agentic_rag.research` works from a foreign cwd |
 
+Two rows are worth reading twice, because they are the ones a convenience shortcut would
+have deleted:
+
+- **Backend failure vs. programming defect.** Both are driven through the *real* service
+  with a tool that raises where a real backend would. A `ToolError` is
+  `backend_unavailable`; a `TypeError` from the same seam is `internal_error`. A bug
+  reported as a provider failure sends whoever is on call to read the wrong service's
+  logs.
+- **Concurrency isolation.** Eight requests are held on a barrier inside the runner, so
+  none may return until all are in flight. Any shared mutable state would have to be
+  shared *at the same moment*, which is the only version of this test that proves
+  anything.
+
 ## Gates
 
 ```powershell
@@ -243,14 +256,92 @@ python -m pytest -q tests/api tests/cli tests/test_health.py
 python -m agentic_rag.research --question "Why use citations in RAG?" --max-steps 3 --retriever fake
 ```
 
+## What the brief's smoke command actually does
+
+This is the first thing a reviewer will run, and it exits **1**:
+
+```
+python -m agentic_rag.research --question "Why use citations in RAG?" --max-steps 3 --retriever fake
+```
+
+```
+status=refused steps_used=2 citations=1 retriever=fake request_id=...
+```
+
+That is the M2 loop behaving correctly, not a runtime-surface defect. The committed
+corpus has one passage about citations; the critic scores it `1 passage + 1 covered term
+= 2`, below the threshold of 3, so it proposes the follow-up `rag use`, retrieves nothing
+for it, and refuses with `insufficient_evidence` rather than answering from one thin
+passage. The full report, its two named gaps and the whole trace are printed. Exit 1 is
+the documented code for "finished without a grounded answer".
+
+A question the corpus can actually support exits 0:
+
+```
+python -m agentic_rag.research --question "What does hybrid retrieval buy over dense retrieval alone?"
+# status=done steps_used=1 citations=2  → exit 0
+```
+
+Nothing in this lane changed the planner, the critic or the threshold; tuning the corpus
+or the stop rule to make a demo question answerable would be hard-coding a golden answer
+into production code, which the wave forbids and which would make the refusal path
+untrustworthy everywhere else.
+
 ## Assumptions and residual risks
 
-Recorded as the lane finds them; see the Log section for what is settled.
+1. **`stop_reason` is not a top-level response field.** The canonical sketch names six
+   fields and this lane was told not to change the public contract, so the reason stays
+   in the trace's terminal `stop` event. If the integrator wants it promoted, that is a
+   contract decision, not a lane decision.
+2. **`capability_missing` answers 503, not 501.** The request is valid; the deployment is
+   what cannot serve it. 501 reads as "not implemented anywhere", which would be untrue
+   of a deployment that has the variable set.
+3. **A refusal exits non-zero.** Documented in `--help` and above. If a caller wants
+   "the process ran" semantics, `--quiet` plus reading `.status` from the JSON gives it
+   without the exit code.
+4. **The README and `docs/architecture.md` still say the route and CLI are planned.**
+   Both are outside this lane's ownership and were deliberately not touched. The
+   direction of the error is the safe one — the docs understate what is shipped rather
+   than overstating it — but the integrator has to correct the milestone tables and the
+   status line before this is released.
+5. **No `X-Request-ID` is forwarded to production-rag.** `docs/architecture.md` describes
+   the agent passing its run id on the outbound query so both services' logs join. The
+   outbound client lives in `tools/retrieve.py`, which belongs to another lane, so the id
+   stops at this service's boundary. The service already has the value; wiring it through
+   is a one-line change in the owner's lane.
+6. **Body size is bounded by the question length, not by the transport.** A request whose
+   `question` is 8001 characters is rejected, but a multi-megabyte JSON body is parsed
+   before that check runs. A body-size limit belongs to the server or the proxy in front
+   of it, and adding one here would be a dependency and a deployment decision this lane
+   was not asked to make.
+7. **The `degraded` status is reachable through the transport but not through the free
+   path.** The loop never produces it. The response model, the CLI's exit-code table and
+   the tests all handle it, driven by a stub runner — so the day a tool failure produces
+   it, the surface already reports it rather than crashing on an unexpected value.
+8. **Fake-provider claims stay plumbing-only.** Everything demonstrated here — the route,
+   the CLI, the error envelope, the correlation id, the trace — is transport behaviour
+   over a deterministic in-process fixture. None of it is evidence about retrieval or
+   answer quality, and the OpenAPI description says so in the document a client author
+   reads.
 
 ## Log
 
 - **Checkpoint 1 — baseline inventory and contract.** Repository read end to end, gates
   run green on an untouched checkout (`ruff`, `mypy` on 17 files, 97 tests), branch cut
   from the dispatch SHA. Contract above written before any runtime code.
+- **Checkpoint 2 — shared adapter and schemas.** `ResearchService`, the strict request
+  and response models, the error envelope and the correlation-id rule, with unit tests
+  for each. No transport yet.
+- **Checkpoint 3 — HTTP.** Route, middleware and handlers. Refusals and exhausted budgets
+  are 200s with honest statuses; only an unservable request is a non-2xx.
+- **Checkpoint 4 — CLI and parity.** `python -m agentic_rag.research` over the same
+  service, and the tests that compare its JSON to the route's body for the same question,
+  success and failure alike.
+- **Checkpoint 5 — adversarial sweep, OpenAPI review, packaging.** Failure cases moved
+  onto the real service path; the schema checked to name every failure shape; a wheel
+  built, installed into a clean virtual environment outside the repository, and driven
+  both as a CLI and as a uvicorn process over a real socket.
+- **Checkpoint 6 — fresh-environment validation.** Gates re-run from a clean checkout of
+  the pushed branch in a new virtual environment.
 </content>
 </invoke>
