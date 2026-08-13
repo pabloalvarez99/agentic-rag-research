@@ -13,15 +13,17 @@ tool cannot tell them apart:
   corpus, deterministic per sub-question. The default, and what makes the loop
   runnable in CI and on a laptop with no credential. It is a fixture, not a
   simulation: it supports no claim about retrieval quality.
-* :class:`~agentic_rag.retrievers.http_p1.HttpRetrievalBackend` — opt-in, built
-  only when ``PRODUCTION_RAG_URL`` names a running production-rag instance. No
-  default test reaches for it, because no default test should need a service
-  started to pass. It lives in :mod:`agentic_rag.retrievers` with the pinned
-  upstream contract it speaks, and is re-exported here so every existing import
-  keeps working.
+* :class:`~agentic_rag.tools.http_p1.HttpRetrievalBackend` — opt-in, built only
+  when ``PRODUCTION_RAG_URL`` names a running production-rag instance. No default
+  test reaches for it, because no default test should need a service started to
+  pass. It lives in :mod:`agentic_rag.tools.http_p1`, beside the pinned upstream
+  contract it speaks, and is re-exported here so every existing import keeps
+  working.
 
-:class:`~agentic_rag.retrievers.passage.Passage` moved to the same package for
-the same reason and is re-exported here too.
+:class:`~agentic_rag.tools.passage.Passage` moved to its own module for one
+mechanical reason: the HTTP backend produces passages and this module consumes
+the backend, so a shared leaf is what keeps the two from importing each other.
+It is re-exported here, unchanged.
 """
 
 from __future__ import annotations
@@ -32,10 +34,10 @@ from typing import Final, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agentic_rag.retrievers.http_p1 import HttpRetrievalBackend
-from agentic_rag.retrievers.passage import Passage
 from agentic_rag.text import keyword_terms
 from agentic_rag.tools.base import ToolError
+from agentic_rag.tools.http_p1 import HttpRetrievalBackend
+from agentic_rag.tools.passage import Passage
 
 PRODUCTION_RAG_URL_ENV: Final = "PRODUCTION_RAG_URL"
 """Environment variable that opts the tool into the hosted retrieval service."""
@@ -305,7 +307,7 @@ def build_retrieve_tool(backend: RetrievalBackend | None = None) -> RetrieveTool
 
     Returns:
         A tool bound to ``backend``; otherwise to
-        :class:`~agentic_rag.retrievers.http_p1.HttpRetrievalBackend` when
+        :class:`~agentic_rag.tools.http_p1.HttpRetrievalBackend` when
         ``PRODUCTION_RAG_URL`` is set to a non-empty value, and to
         :class:`FakeRetrievalBackend` in every other case.
 

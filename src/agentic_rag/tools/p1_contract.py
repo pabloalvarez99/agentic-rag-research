@@ -206,7 +206,7 @@ class P1Citation(BaseModel):
     can act on.
 
     ``marker`` is required by the upstream schema and is deliberately not mapped
-    onto :class:`~agentic_rag.retrievers.passage.Passage`: it numbers a sentence
+    onto :class:`~agentic_rag.tools.passage.Passage`: it numbers a sentence
     in *their* answer, and this agent writes its own report with its own
     markers. It is validated so that a response missing it is recognised as a
     different contract, not as evidence.

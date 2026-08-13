@@ -41,7 +41,16 @@ from uuid import uuid4
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from agentic_rag.retrievers.p1_contract import (
+from agentic_rag.tools.base import (
+    ERROR_BACKEND_UNAVAILABLE,
+    ERROR_CONTRACT_MISMATCH,
+    ERROR_PROVIDER,
+    ERROR_RATE_LIMITED,
+    ERROR_UNAUTHORIZED,
+    ERROR_VALIDATION,
+    ToolError,
+)
+from agentic_rag.tools.p1_contract import (
     DEFAULT_API_PREFIX,
     REQUEST_ID_HEADER,
     REQUEST_ID_PATTERN,
@@ -53,17 +62,8 @@ from agentic_rag.retrievers.p1_contract import (
     RerankMode,
     query_path,
 )
-from agentic_rag.retrievers.passage import Passage
-from agentic_rag.retrievers.service_url import ServiceUrl
-from agentic_rag.tools.base import (
-    ERROR_BACKEND_UNAVAILABLE,
-    ERROR_CONTRACT_MISMATCH,
-    ERROR_PROVIDER,
-    ERROR_RATE_LIMITED,
-    ERROR_UNAUTHORIZED,
-    ERROR_VALIDATION,
-    ToolError,
-)
+from agentic_rag.tools.passage import Passage
+from agentic_rag.tools.service_url import ServiceUrl
 
 BACKEND_NAME: Final = "production-rag"
 """Name recorded on every result this backend serves, and in the run's trace."""
@@ -180,7 +180,7 @@ class HttpRetrievalBackend:
         Args:
             base_url: Root of the instance, e.g. ``http://127.0.0.1:8000``.
                 Validated on the way in; see
-                :class:`~agentic_rag.retrievers.service_url.ServiceUrl`.
+                :class:`~agentic_rag.tools.service_url.ServiceUrl`.
             api_prefix: The deployment's versioned route prefix. Configurable
                 upstream, so it is configurable here rather than hard-coded.
             mode: Retrieval mode to ask for. ``hybrid`` by default because that is

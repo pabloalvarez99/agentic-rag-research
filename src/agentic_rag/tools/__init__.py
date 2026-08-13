@@ -4,16 +4,13 @@ M1 ships one: ``retrieve``, and the retrieval boundary behind it. The protocol i
 satisfies lives in :mod:`agentic_rag.tools.base`, and ``plan`` and ``critique``
 will satisfy the same one.
 
-The backends themselves live in :mod:`agentic_rag.retrievers`; the names below
-are re-exported so a caller that only cares about "the retrieve tool and the
-things it hands back" imports from one place.
+The backends and the pinned upstream contract live in sibling modules here; the
+names below are re-exported so a caller that only cares about "the retrieve tool
+and the things it hands back" imports from one place.
 """
 
 from __future__ import annotations
 
-from agentic_rag.retrievers.http_p1 import HttpRetrievalBackend, RemoteQueryOutcome
-from agentic_rag.retrievers.p1_contract import EvidenceState
-from agentic_rag.retrievers.service_url import InvalidServiceUrlError, ServiceUrl
 from agentic_rag.tools.base import (
     ERROR_BACKEND_UNAVAILABLE,
     ERROR_CONTRACT_MISMATCH,
@@ -25,6 +22,8 @@ from agentic_rag.tools.base import (
     Tool,
     ToolError,
 )
+from agentic_rag.tools.http_p1 import HttpRetrievalBackend, RemoteQueryOutcome
+from agentic_rag.tools.p1_contract import EvidenceState
 from agentic_rag.tools.retrieve import (
     DEFAULT_CORPUS,
     DEFAULT_TOP_K,
@@ -38,6 +37,7 @@ from agentic_rag.tools.retrieve import (
     RetrieveTool,
     build_retrieve_tool,
 )
+from agentic_rag.tools.service_url import InvalidServiceUrlError, ServiceUrl
 
 __all__ = [
     "DEFAULT_CORPUS",
