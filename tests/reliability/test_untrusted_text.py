@@ -17,6 +17,7 @@ import pytest
 from agentic_rag.agent import run_research
 from agentic_rag.agent.synthesizer import synthesize
 from agentic_rag.tools import FakeRetrievalBackend, Passage, RetrieveTool
+from agentic_rag.verification import MARKER, verify_run
 from reliability.backends import corpus
 
 CONTROL_TEXT = "Chunking \x1b[31msplits\x1b[0m a document\x07 and \x00hides\x08 the rest."
@@ -27,6 +28,10 @@ C1 = tuple(chr(code) for code in range(0x80, 0xA0))
 
 def passage(text: str) -> Passage:
     return Passage(chunk_id="ctrl-1", source_path="docs/ctrl.md", text=text, rank=1)
+
+
+def markers(report: str) -> list[int]:
+    return [int(found) for found in MARKER.findall(report)]
 
 
 def test_a_finding_carries_no_control_character_from_the_passage() -> None:
@@ -61,6 +66,48 @@ def test_ordinary_unicode_survives_untouched() -> None:
     assert "🧭" in result.report
     assert "ñ" in result.report
     assert "—" in result.report
+
+
+def test_a_passage_that_prints_a_marker_shape_does_not_invent_a_citation() -> None:
+    result = synthesize("chunking?", [passage("Chunking [7] splits a document.")])
+
+    assert markers(result.report) == [1]
+    assert "(7)" in result.report, "the text is kept, only its brackets are neutralised"
+
+
+def test_a_question_that_prints_a_marker_shape_does_not_invent_a_citation() -> None:
+    result = synthesize("What does [4] mean?", [passage("Chunking splits a document.")])
+
+    assert markers(result.report) == [1]
+
+
+def test_a_gap_quoting_a_marker_shape_does_not_invent_a_citation() -> None:
+    state = run_research(
+        "What were the [9] quarterly revenues in Patagonia?",
+        tool=RetrieveTool(FakeRetrievalBackend()),
+        max_steps=2,
+    )
+    assert state.report is not None
+
+    assert markers(state.report) == []
+    assert verify_run(state).ok, verify_run(state).summary()
+
+
+def test_every_marker_a_report_prints_resolves_even_when_the_corpus_fights_back() -> None:
+    documents = corpus(
+        "Chunking [1] splits a document [2] into pieces.",
+        "Refusal [3] names the gap that chunking left.",
+    )
+
+    state = run_research(
+        "How does chunking work and how does refusal work in a long enough question to split",
+        tool=RetrieveTool(FakeRetrievalBackend(documents)),
+        max_steps=4,
+    )
+    assert state.report is not None
+
+    assert markers(state.report) == [citation.marker for citation in state.citations]
+    assert verify_run(state).ok, verify_run(state).summary()
 
 
 @pytest.mark.parametrize("control", ["\x1b", "\x07", "\x00", "\x7f", "\x9b"])

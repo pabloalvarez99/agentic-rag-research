@@ -46,6 +46,15 @@ rather than deleted, so stripping one cannot silently join two words into a
 third.
 """
 
+_MARKER_SHAPED: Final = re.compile(r"\[(\d+)\]")
+"""A citation marker, as it would look if a passage or a question contained one.
+
+The report is the one place ``[n]`` means something, and it means *this run
+retrieved that*. A document that quotes a citation of its own would otherwise
+print a marker resolving to nothing, which is precisely what the corpus in this
+repository says a grounded system must not do.
+"""
+
 
 class Citation(BaseModel):
     """One marker in a report, resolved to the passage it points at.
@@ -82,14 +91,22 @@ class Synthesis(BaseModel):
     )
 
 
-def _printable(text: str) -> str:
-    """Return ``text`` with control characters replaced by a space."""
-    return _CONTROL.sub(" ", text)
+def _quotable(text: str) -> str:
+    """Return ``text`` in the form it may be quoted inside a report.
+
+    Two substitutions, both about text nobody in this process wrote: control
+    characters become a space, and a marker shape becomes the same number in
+    parentheses. The second is not cosmetic — ``[7]`` inside a passage is
+    indistinguishable from a citation marker once it is printed, and a report
+    whose markers do not all resolve is the failure the citation policy exists to
+    prevent. The digits are kept, so nothing the source said is lost.
+    """
+    return _MARKER_SHAPED.sub(r"(\1)", _CONTROL.sub(" ", text))
 
 
 def _snippet(text: str) -> str:
     """Return the first sentence of ``text``, cut at a word boundary if long."""
-    collapsed = " ".join(_printable(text).split())
+    collapsed = " ".join(_quotable(text).split())
     head, separator, _ = collapsed.partition(". ")
     sentence = f"{head}." if separator else collapsed
     if len(sentence) <= SNIPPET_CHARS:
@@ -150,7 +167,7 @@ def synthesize(
         The report and its citations. Citations are empty exactly when the
         evidence was.
     """
-    lines: list[str] = [f"Question: {_printable(question)}", ""]
+    lines: list[str] = [f"Question: {_quotable(question)}", ""]
     finding_lines, citations = _findings(evidence)
 
     if failure is not None and not finding_lines:
@@ -184,6 +201,6 @@ def synthesize(
 
     if gaps:
         lines.extend(["", "Not established by the retrieved evidence:", ""])
-        lines.extend(f"- {gap.detail}" for gap in gaps)
+        lines.extend(f"- {_quotable(gap.detail)}" for gap in gaps)
 
     return Synthesis(report="\n".join(lines), citations=tuple(citations))
