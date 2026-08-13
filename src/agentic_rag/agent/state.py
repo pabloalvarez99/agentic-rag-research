@@ -28,6 +28,7 @@ from typing import Any, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentic_rag.agent.critic import Critique, Gap
+from agentic_rag.agent.failures import ToolFailure, tool_failure
 from agentic_rag.agent.synthesizer import Citation, Synthesis
 from agentic_rag.tools.retrieve import Passage, RetrieveRequest, RetrieveResult, RetrieveTool
 
@@ -38,10 +39,12 @@ DEFAULT_MAX_STEPS = 4
 class ResearchStatus(StrEnum):
     """Where a run is, and if it is over, how it ended.
 
-    ``DEGRADED`` is declared but not yet produced: it is reserved for a run that
-    completed with a tool failure it worked around, and no tool on the free path
-    can fail that way. Naming it here rather than adding it later keeps the
-    status set stable for anything that already switches on it.
+    ``DEGRADED`` is the outcome of a run a tool failure ended: the run stopped
+    early, reported whatever it had grounded before the failure, and says so
+    rather than claiming one of the outcomes it would have reached on its own.
+    It outranks the others because the failure is the proximate cause, and a run
+    that reported ``budget_exhausted`` after a tool died would put a falsehood in
+    the first field an operator reads.
     """
 
     RUNNING = "running"
@@ -61,18 +64,30 @@ TERMINAL_STATUSES: Final = frozenset(
 )
 """The statuses a finished run may carry."""
 
-StopReason = Literal["evidence_sufficient", "no_evidence", "insufficient_evidence", "budget_spent"]
+StopReason = Literal[
+    "evidence_sufficient",
+    "no_evidence",
+    "insufficient_evidence",
+    "budget_spent",
+    "tool_failed",
+]
 """Why the loop stopped, from a closed set so a caller can branch on it."""
 
 TraceEventName = Literal[
     "plan_created",
     "tool_call",
     "tool_result",
+    "tool_error",
     "critique",
     "synthesize",
     "stop",
 ]
-"""The events a run may record, in the order a complete run emits them."""
+"""The events a run may record.
+
+A complete run emits them in the order listed, minus the ones its outcome did
+not reach: ``tool_error`` replaces the ``tool_result`` of the call that failed,
+and is the last thing the loop does before it synthesises and stops.
+"""
 
 
 class StepBudgetExceeded(RuntimeError):
@@ -108,11 +123,16 @@ class TraceEvent(BaseModel):
 
 
 class StepRecord(BaseModel):
-    """One completed tool call, in the order it happened.
+    """One attempted tool call, in the order it happened.
 
     It carries chunk ids and not passage text. The text is in
     :attr:`ResearchState.evidence` exactly once, and a step that copied it would
     make two places able to disagree about what a step actually saw.
+
+    An attempt that raised is a step like any other — it cost a call and a unit
+    of budget — and is told apart by :attr:`failure` rather than by being absent.
+    A run whose failed attempts left no record would show a budget that does not
+    add up.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -123,11 +143,20 @@ class StepRecord(BaseModel):
         default=(),
         description="Chunk ids the step returned, including ones already known.",
     )
+    failure: ToolFailure | None = Field(
+        default=None,
+        description="Why the call produced nothing, when it raised. None on a completed call.",
+    )
 
     @property
     def found_evidence(self) -> bool:
         """Return whether the step returned any evidence at all."""
         return bool(self.evidence_ids)
+
+    @property
+    def failed(self) -> bool:
+        """Return whether the call raised instead of producing a result."""
+        return self.failure is not None
 
 
 class ResearchState(BaseModel):
@@ -220,8 +249,34 @@ class ResearchState(BaseModel):
 
     @property
     def unanswered_sub_questions(self) -> tuple[str, ...]:
-        """Return the sub-questions that were retrieved for and returned nothing."""
-        return tuple(step.request for step in self.steps if not step.found_evidence)
+        """Return the sub-questions the corpus was asked and had nothing for.
+
+        A step whose tool *failed* is not one of these. The critic turns these
+        into a gap reading "no passage was retrieved for …", which asserts
+        something about the corpus; a call that never completed supports no such
+        claim. Those are in :attr:`failed_sub_questions`.
+        """
+        return tuple(
+            step.request for step in self.steps if not step.found_evidence and not step.failed
+        )
+
+    @property
+    def failed_sub_questions(self) -> tuple[str, ...]:
+        """Return the sub-questions whose tool call raised, oldest first."""
+        return tuple(step.request for step in self.steps if step.failed)
+
+    @property
+    def has_tool_failure(self) -> bool:
+        """Return whether any attempted step failed."""
+        return any(step.failed for step in self.steps)
+
+    @property
+    def last_tool_failure(self) -> ToolFailure | None:
+        """Return the most recent failure, or ``None`` if every step completed."""
+        for step in reversed(self.steps):
+            if step.failure is not None:
+                return step.failure
+        return None
 
     def _record(self, event: TraceEventName, payload: dict[str, Any]) -> TraceEvent:
         """Append one trace event and return it."""
@@ -234,6 +289,19 @@ class ResearchState(BaseModel):
         if self.is_finished:
             raise RunAlreadyFinished(
                 f"run finished with status {self.status.value!r}; it records no further work"
+            )
+
+    def _require_step(self) -> None:
+        """Raise if the run may not spend another step, for either reason.
+
+        Every way of consuming a step goes through here, so "an attempted tool
+        call costs one unit of budget" is a rule with one implementation rather
+        than one per outcome.
+        """
+        self._require_running()
+        if self.budget_spent:
+            raise StepBudgetExceeded(
+                f"budget of {self.max_steps} step(s) is spent; the run must answer or refuse"
             )
 
     def record_plan(self, sub_questions: Sequence[str]) -> None:
@@ -294,11 +362,7 @@ class ResearchState(BaseModel):
             RunAlreadyFinished: The run has already stopped.
             StepBudgetExceeded: The budget was already spent.
         """
-        self._require_running()
-        if self.budget_spent:
-            raise StepBudgetExceeded(
-                f"budget of {self.max_steps} step(s) is spent; the run must answer or refuse"
-            )
+        self._require_step()
 
         known = set(self.evidence_ids)
         new_ids: list[str] = []
@@ -322,6 +386,46 @@ class ResearchState(BaseModel):
                 "question": record.request,
                 "evidence_ids": list(record.evidence_ids),
                 "new_evidence_ids": new_ids,
+            },
+        )
+        return record
+
+    def record_tool_failure(self, tool: str, request: RetrieveRequest) -> StepRecord:
+        """Spend one step on a tool call that raised instead of answering.
+
+        Traces ``tool_error`` with the tool, the sub-question it was called with,
+        the failure type and the same sentence the report will print. It costs a
+        step because it cost a call: a failed attempt that were free would make
+        ``max_steps`` a bound on successes rather than on work, and a run against
+        a dead backend could attempt forever.
+
+        Nothing about the exception is passed in — see
+        :mod:`agentic_rag.agent.failures` for why the cause is deliberately not
+        recorded here.
+
+        Args:
+            tool: Name of the tool whose call raised.
+            request: The request it was called with.
+
+        Returns:
+            The failed step appended to :attr:`steps`.
+
+        Raises:
+            RunAlreadyFinished: The run has already stopped.
+            StepBudgetExceeded: The budget was already spent.
+        """
+        self._require_step()
+
+        failure = tool_failure(tool)
+        record = StepRecord(tool=tool, request=request.question, failure=failure)
+        self.steps.append(record)
+        self._record(
+            "tool_error",
+            {
+                "tool": failure.tool,
+                "question": record.request,
+                "error_type": failure.error_type,
+                "detail": failure.detail,
             },
         )
         return record

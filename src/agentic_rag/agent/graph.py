@@ -20,9 +20,12 @@ Two independent bounds guarantee termination, and both are load-bearing:
   can close would be re-issued until the budget ran out, and every run would
   report ``budget_exhausted`` regardless of why it really stopped.
 
-Only ``critique`` can end the loop on success. ``plan`` cannot declare success
-and ``retrieve`` cannot declare failure, so there is one place to audit when a
-run ends wrongly.
+Only ``critique`` can end the loop on success, and only a tool that raised can
+end it early. ``plan`` cannot declare success, and ``retrieve`` cannot declare
+the evidence insufficient — the one thing it may declare is that the tool it
+called produced nothing at all, which is a fact about the call and not a verdict
+on the evidence. So there is one place to audit when a run ends wrongly, and one
+place to audit when it stops short.
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ from agentic_rag.agent.state import (
     StopReason,
 )
 from agentic_rag.agent.synthesizer import synthesize
+from agentic_rag.tools.base import ToolError
 from agentic_rag.tools.retrieve import (
     DEFAULT_TOP_K,
     RetrieveRequest,
@@ -51,13 +55,18 @@ def decide_outcome(
     sufficient: bool,
     has_evidence: bool,
     budget_spent: bool,
+    tool_failed: bool = False,
 ) -> tuple[ResearchStatus, StopReason]:
     """Return the terminal status and the reason for it.
 
-    Written as a pure function of three booleans because the order of these
+    Written as a pure function of four booleans because the order of these
     tests *is* the policy, and a policy buried inside a loop is one that gets
     quietly reordered. Reading top to bottom:
 
+    * A tool that failed ended the run, whatever the evidence or the budget
+      would have made of it. It is first because it is the proximate cause: a
+      run that died on a dead backend and reported ``budget_exhausted`` would
+      send an operator to read the wrong graph.
     * Sufficient evidence answers, whatever the budget did.
     * A run that retrieved nothing refuses, even if it had steps left. There is
       no report to make partial.
@@ -73,10 +82,13 @@ def decide_outcome(
         sufficient: The last critique found the evidence enough to answer from.
         has_evidence: At least one passage was gathered.
         budget_spent: The step budget is fully used.
+        tool_failed: A tool call raised and ended the run.
 
     Returns:
         The terminal status and the closed-set reason recorded with it.
     """
+    if tool_failed:
+        return ResearchStatus.DEGRADED, "tool_failed"
     if sufficient:
         return ResearchStatus.DONE, "evidence_sufficient"
     if not has_evidence:
@@ -91,11 +103,36 @@ def plan_node(state: ResearchState) -> None:
     state.record_plan(plan_question(state.question))
 
 
-def retrieve_node(state: ResearchState, tool: RetrieveTool, sub_question: str, top_k: int) -> None:
-    """Spend one step retrieving for ``sub_question`` and absorb what comes back."""
+def retrieve_node(state: ResearchState, tool: RetrieveTool, sub_question: str, top_k: int) -> bool:
+    """Spend one step retrieving for ``sub_question`` and absorb what comes back.
+
+    ``ToolError`` is the one exception a tool is documented to raise, and the one
+    the loop treats as an outcome rather than a defect: it is recorded as a
+    failed step and the caller is told to stop. It is caught without being read —
+    :mod:`agentic_rag.agent.failures` explains why the loop never touches the
+    exception object. Anything else propagates, because an exception the tool
+    contract does not name is a bug, and a bug reported as ``degraded`` is a bug
+    nobody goes looking for.
+
+    Args:
+        state: The run to spend the step on.
+        tool: The tool to call.
+        sub_question: What to retrieve for.
+        top_k: Passages this step may return.
+
+    Returns:
+        Whether the tool produced a result. ``False`` means the step was recorded
+        as a failure and the run must stop.
+    """
     request = RetrieveRequest(question=sub_question, top_k=top_k)
     state.record_tool_call(tool.name, request)
-    state.record_retrieval(request, tool.run(request))
+    try:
+        result = tool.run(request)
+    except ToolError:
+        state.record_tool_failure(tool.name, request)
+        return False
+    state.record_retrieval(request, result)
+    return True
 
 
 def critique_node(state: ResearchState) -> Critique:
@@ -111,10 +148,12 @@ def critique_node(state: ResearchState) -> Critique:
 
 def finish_node(state: ResearchState, *, sufficient: bool) -> None:
     """Compose the report the outcome calls for and close the run."""
+    failure = state.last_tool_failure
     status, reason = decide_outcome(
         sufficient=sufficient,
         has_evidence=state.has_evidence,
         budget_spent=state.budget_spent,
+        tool_failed=failure is not None,
     )
     state.record_synthesis(
         synthesize(
@@ -123,6 +162,7 @@ def finish_node(state: ResearchState, *, sufficient: bool) -> None:
             gaps=state.gaps,
             partial=status is ResearchStatus.BUDGET_EXHAUSTED,
             refused=status is ResearchStatus.REFUSED,
+            failure=failure,
         )
     )
     state.finish(status, reason)
@@ -164,7 +204,8 @@ def run_research(
             continue
         requested.add(folded)
 
-        retrieve_node(state, retriever, sub_question, top_k)
+        if not retrieve_node(state, retriever, sub_question, top_k):
+            break
         verdict = critique_node(state)
         if verdict.sufficient:
             sufficient = True

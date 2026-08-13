@@ -22,16 +22,29 @@ a thin run comes to read like a complete one.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentic_rag.agent.critic import Gap
+from agentic_rag.agent.failures import ToolFailure
 from agentic_rag.tools.retrieve import Passage
 
 SNIPPET_CHARS: Final = 240
 """Longest finding printed for one passage before it is cut at a word boundary."""
+
+_CONTROL: Final = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+"""C0 and C1 control characters, none of which a report has a use for.
+
+Retrieved text is untrusted (master plan §13.6) and a report is printed to a
+terminal by the CLI. A passage carrying ``\\x1b[2J`` would clear an operator's
+screen, and one carrying ``\\x08`` would delete the words in front of it — the
+finding would read as something nobody retrieved. They are replaced by a space
+rather than deleted, so stripping one cannot silently join two words into a
+third.
+"""
 
 
 class Citation(BaseModel):
@@ -69,9 +82,14 @@ class Synthesis(BaseModel):
     )
 
 
+def _printable(text: str) -> str:
+    """Return ``text`` with control characters replaced by a space."""
+    return _CONTROL.sub(" ", text)
+
+
 def _snippet(text: str) -> str:
     """Return the first sentence of ``text``, cut at a word boundary if long."""
-    collapsed = " ".join(text.split())
+    collapsed = " ".join(_printable(text).split())
     head, separator, _ = collapsed.partition(". ")
     sentence = f"{head}." if separator else collapsed
     if len(sentence) <= SNIPPET_CHARS:
@@ -105,6 +123,7 @@ def synthesize(
     gaps: Sequence[Gap] = (),
     partial: bool = False,
     refused: bool = False,
+    failure: ToolFailure | None = None,
 ) -> Synthesis:
     """Compose the report for a finished run.
 
@@ -121,15 +140,25 @@ def synthesize(
         refused: The run is declining to answer. Any evidence it did gather is
             still printed and still cited — a refusal that hides its passages is
             harder to check than one that shows them.
+        failure: The tool failure that ended the run. Present, it takes
+            precedence over ``partial`` and ``refused``: the run stopped for a
+            reason that is not about the evidence, and the report says which. A
+            run with evidence prints what it grounded before the failure; a run
+            without prints that no answer is available at all.
 
     Returns:
         The report and its citations. Citations are empty exactly when the
         evidence was.
     """
-    lines: list[str] = [f"Question: {question}", ""]
+    lines: list[str] = [f"Question: {_printable(question)}", ""]
     finding_lines, citations = _findings(evidence)
 
-    if refused and not finding_lines:
+    if failure is not None and not finding_lines:
+        lines.append(
+            f"Unavailable: the run stopped because {failure.detail}, "
+            "and it had retrieved nothing to ground an answer on."
+        )
+    elif refused and not finding_lines:
         lines.append("Refused: nothing was retrieved that could support an answer.")
     elif refused:
         lines.append(
@@ -138,7 +167,13 @@ def synthesize(
         )
         lines.extend(["", *finding_lines])
     else:
-        if partial:
+        if failure is not None:
+            lines.append(
+                f"Status: degraded. The run stopped because {failure.detail}; "
+                "the findings below are what it grounded first."
+            )
+            lines.append("")
+        elif partial:
             lines.append(
                 "Status: partial. The step budget ended before the evidence was sufficient; "
                 "the findings below are what the run grounded."
