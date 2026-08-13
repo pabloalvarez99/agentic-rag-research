@@ -318,7 +318,18 @@ untrustworthy everywhere else.
    path.** The loop never produces it. The response model, the CLI's exit-code table and
    the tests all handle it, driven by a stub runner — so the day a tool failure produces
    it, the surface already reports it rather than crashing on an unexpected value.
-8. **Fake-provider claims stay plumbing-only.** Everything demonstrated here — the route,
+8. **A backend failure will change shape once lane A4 lands, and this surface already
+   handles both.** A4 makes `run_research` catch `ToolError` inside `retrieve_node` and
+   finish the run as `degraded` rather than letting it escape. After that rebase, a
+   failing retrieval reaches this service as a *finished run*, so it answers **200 with
+   `status: "degraded"`** (CLI exit 1) instead of **503 `backend_unavailable`** (CLI exit
+   4). No code change is needed here — the `ToolError` catch stays correct as the seam
+   for anything A4 does not swallow, and `degraded` is already a first-class value in the
+   response model, the OpenAPI enum, the CLI exit table and the tests. But the integrator
+   has to choose which one the published contract promises, because both are defensible
+   and only one can be documented: a transport-level failure the caller retries, or a
+   completed run whose status says the world failed under it.
+9. **Fake-provider claims stay plumbing-only.** Everything demonstrated here — the route,
    the CLI, the error envelope, the correlation id, the trace — is transport behaviour
    over a deterministic in-process fixture. None of it is evidence about retrieval or
    answer quality, and the OpenAPI description says so in the document a client author
