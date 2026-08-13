@@ -9,6 +9,7 @@ arrive with M3 (``docs/architecture.md``).
 from __future__ import annotations
 
 from agentic_rag.agent.critic import SUFFICIENT_SCORE, Critique, Gap, critique
+from agentic_rag.agent.failures import TOOL_ERROR, ToolFailure, ToolFailureType, tool_failure
 from agentic_rag.agent.graph import (
     critique_node,
     decide_outcome,
@@ -38,6 +39,7 @@ __all__ = [
     "SHORT_QUESTION_CHARS",
     "SUFFICIENT_SCORE",
     "TERMINAL_STATUSES",
+    "TOOL_ERROR",
     "Citation",
     "Critique",
     "Gap",
@@ -48,6 +50,8 @@ __all__ = [
     "StepRecord",
     "StopReason",
     "Synthesis",
+    "ToolFailure",
+    "ToolFailureType",
     "TraceEvent",
     "TraceEventName",
     "critique",
@@ -59,4 +63,5 @@ __all__ = [
     "retrieve_node",
     "run_research",
     "synthesize",
+    "tool_failure",
 ]

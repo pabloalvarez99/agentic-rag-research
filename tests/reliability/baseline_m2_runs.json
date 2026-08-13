@@ -1,0 +1,1156 @@
+{
+  "answerable-default": {
+    "question": "What does hybrid retrieval buy over dense retrieval alone?",
+    "max_steps": 4,
+    "plan": [
+      "What does hybrid retrieval buy over dense retrieval alone?"
+    ],
+    "steps": [
+      {
+        "tool": "retrieve",
+        "request": "What does hybrid retrieval buy over dense retrieval alone?",
+        "evidence_ids": [
+          "hybrid-retrieval-1",
+          "reranking-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "chunk_id": "hybrid-retrieval-1",
+        "source_path": "docs/retrieval.md",
+        "text": "Hybrid retrieval runs a dense vector search and a sparse keyword search over the same corpus and fuses the two rankings with reciprocal rank fusion, so a query that only one of them understands still returns evidence.",
+        "rank": 1,
+        "title": "Retrieval",
+        "heading_path": "Retrieval > Hybrid search"
+      },
+      {
+        "chunk_id": "reranking-1",
+        "source_path": "docs/retrieval.md",
+        "text": "A cross-encoder reranker reads the query and a candidate passage together and reorders the shortlist. It costs far more per pair than the retriever, which is why it runs over tens of candidates instead of the whole index.",
+        "rank": 2,
+        "title": "Retrieval",
+        "heading_path": "Retrieval > Reranking"
+      }
+    ],
+    "gaps": [],
+    "status": "done",
+    "stop_reason": "evidence_sufficient",
+    "report": "Question: What does hybrid retrieval buy over dense retrieval alone?\n\nFindings, each one a retrieved passage:\n\n- Hybrid retrieval runs a dense vector search and a sparse keyword search over the same corpus and fuses the two rankings with reciprocal rank fusion, so a query that only one of them understands still returns evidence. [1]\n- A cross-encoder reranker reads the query and a candidate passage together and reorders the shortlist. [2]",
+    "citations": [
+      {
+        "marker": 1,
+        "source_path": "docs/retrieval.md",
+        "chunk_id": "hybrid-retrieval-1",
+        "snippet": "Hybrid retrieval runs a dense vector search and a sparse keyword search over the same corpus and fuses the two rankings with reciprocal rank fusion, so a query that only one of them understands still returns evidence.",
+        "start_line": null,
+        "end_line": null
+      },
+      {
+        "marker": 2,
+        "source_path": "docs/retrieval.md",
+        "chunk_id": "reranking-1",
+        "snippet": "A cross-encoder reranker reads the query and a candidate passage together and reorders the shortlist.",
+        "start_line": null,
+        "end_line": null
+      }
+    ],
+    "trace": [
+      {
+        "event": "plan_created",
+        "payload": {
+          "sub_questions": [
+            "What does hybrid retrieval buy over dense retrieval alone?"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "What does hybrid retrieval buy over dense retrieval alone?",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "What does hybrid retrieval buy over dense retrieval alone?",
+          "evidence_ids": [
+            "hybrid-retrieval-1",
+            "reranking-1"
+          ],
+          "new_evidence_ids": [
+            "hybrid-retrieval-1",
+            "reranking-1"
+          ]
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 2,
+          "keyword_overlap": 4,
+          "score": 6,
+          "sufficient": true,
+          "gaps": []
+        }
+      },
+      {
+        "event": "synthesize",
+        "payload": {
+          "citation_markers": [
+            1,
+            2
+          ],
+          "evidence_available": 2
+        }
+      },
+      {
+        "event": "stop",
+        "payload": {
+          "status": "done",
+          "reason": "evidence_sufficient",
+          "steps_used": 1,
+          "max_steps": 4
+        }
+      }
+    ]
+  },
+  "answerable-narrow": {
+    "question": "What does hybrid retrieval buy over dense retrieval alone?",
+    "max_steps": 4,
+    "plan": [
+      "What does hybrid retrieval buy over dense retrieval alone?"
+    ],
+    "steps": [
+      {
+        "tool": "retrieve",
+        "request": "What does hybrid retrieval buy over dense retrieval alone?",
+        "evidence_ids": [
+          "hybrid-retrieval-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "chunk_id": "hybrid-retrieval-1",
+        "source_path": "docs/retrieval.md",
+        "text": "Hybrid retrieval runs a dense vector search and a sparse keyword search over the same corpus and fuses the two rankings with reciprocal rank fusion, so a query that only one of them understands still returns evidence.",
+        "rank": 1,
+        "title": "Retrieval",
+        "heading_path": "Retrieval > Hybrid search"
+      }
+    ],
+    "gaps": [],
+    "status": "done",
+    "stop_reason": "evidence_sufficient",
+    "report": "Question: What does hybrid retrieval buy over dense retrieval alone?\n\nFindings, each one a retrieved passage:\n\n- Hybrid retrieval runs a dense vector search and a sparse keyword search over the same corpus and fuses the two rankings with reciprocal rank fusion, so a query that only one of them understands still returns evidence. [1]",
+    "citations": [
+      {
+        "marker": 1,
+        "source_path": "docs/retrieval.md",
+        "chunk_id": "hybrid-retrieval-1",
+        "snippet": "Hybrid retrieval runs a dense vector search and a sparse keyword search over the same corpus and fuses the two rankings with reciprocal rank fusion, so a query that only one of them understands still returns evidence.",
+        "start_line": null,
+        "end_line": null
+      }
+    ],
+    "trace": [
+      {
+        "event": "plan_created",
+        "payload": {
+          "sub_questions": [
+            "What does hybrid retrieval buy over dense retrieval alone?"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "What does hybrid retrieval buy over dense retrieval alone?",
+          "top_k": 1
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "What does hybrid retrieval buy over dense retrieval alone?",
+          "evidence_ids": [
+            "hybrid-retrieval-1"
+          ],
+          "new_evidence_ids": [
+            "hybrid-retrieval-1"
+          ]
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 1,
+          "keyword_overlap": 4,
+          "score": 5,
+          "sufficient": true,
+          "gaps": []
+        }
+      },
+      {
+        "event": "synthesize",
+        "payload": {
+          "citation_markers": [
+            1
+          ],
+          "evidence_available": 1
+        }
+      },
+      {
+        "event": "stop",
+        "payload": {
+          "status": "done",
+          "reason": "evidence_sufficient",
+          "steps_used": 1,
+          "max_steps": 4
+        }
+      }
+    ]
+  },
+  "compound-plan": {
+    "question": "How does chunking work and what happens when a citation marker resolves to nothing then how does refusal work?",
+    "max_steps": 4,
+    "plan": [
+      "How does chunking work",
+      "what happens when a citation marker resolves to nothing",
+      "how does refusal work"
+    ],
+    "steps": [
+      {
+        "tool": "retrieve",
+        "request": "How does chunking work",
+        "evidence_ids": [
+          "chunking-1"
+        ]
+      },
+      {
+        "tool": "retrieve",
+        "request": "what happens when a citation marker resolves to nothing",
+        "evidence_ids": [
+          "citations-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "chunk_id": "chunking-1",
+        "source_path": "docs/ingest.md",
+        "text": "Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source.",
+        "rank": 1,
+        "title": "Ingest",
+        "heading_path": "Ingest > Chunking"
+      },
+      {
+        "chunk_id": "citations-1",
+        "source_path": "docs/answers.md",
+        "text": "Every citation marker in an answer resolves to a chunk that was actually retrieved. A marker resolving to nothing is dropped and reported, because a citation nobody can follow is decoration.",
+        "rank": 1,
+        "title": "Answers",
+        "heading_path": "Answers > Citations"
+      }
+    ],
+    "gaps": [],
+    "status": "done",
+    "stop_reason": "evidence_sufficient",
+    "report": "Question: How does chunking work and what happens when a citation marker resolves to nothing then how does refusal work?\n\nFindings, each one a retrieved passage:\n\n- Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source. [1]\n- Every citation marker in an answer resolves to a chunk that was actually retrieved. [2]",
+    "citations": [
+      {
+        "marker": 1,
+        "source_path": "docs/ingest.md",
+        "chunk_id": "chunking-1",
+        "snippet": "Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source.",
+        "start_line": null,
+        "end_line": null
+      },
+      {
+        "marker": 2,
+        "source_path": "docs/answers.md",
+        "chunk_id": "citations-1",
+        "snippet": "Every citation marker in an answer resolves to a chunk that was actually retrieved.",
+        "start_line": null,
+        "end_line": null
+      }
+    ],
+    "trace": [
+      {
+        "event": "plan_created",
+        "payload": {
+          "sub_questions": [
+            "How does chunking work",
+            "what happens when a citation marker resolves to nothing",
+            "how does refusal work"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "How does chunking work",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "How does chunking work",
+          "evidence_ids": [
+            "chunking-1"
+          ],
+          "new_evidence_ids": [
+            "chunking-1"
+          ]
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 1,
+          "keyword_overlap": 1,
+          "score": 2,
+          "sufficient": false,
+          "gaps": [
+            "no retrieved passage mentions: citation, happens, marker, nothing, refusal, resolves, then, work"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "what happens when a citation marker resolves to nothing",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "what happens when a citation marker resolves to nothing",
+          "evidence_ids": [
+            "citations-1"
+          ],
+          "new_evidence_ids": [
+            "citations-1"
+          ]
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 2,
+          "keyword_overlap": 5,
+          "score": 7,
+          "sufficient": true,
+          "gaps": []
+        }
+      },
+      {
+        "event": "synthesize",
+        "payload": {
+          "citation_markers": [
+            1,
+            2
+          ],
+          "evidence_available": 2
+        }
+      },
+      {
+        "event": "stop",
+        "payload": {
+          "status": "done",
+          "reason": "evidence_sufficient",
+          "steps_used": 2,
+          "max_steps": 4
+        }
+      }
+    ]
+  },
+  "compound-one-step": {
+    "question": "How does chunking work and what happens when a citation marker resolves to nothing then how does refusal work?",
+    "max_steps": 1,
+    "plan": [
+      "How does chunking work",
+      "what happens when a citation marker resolves to nothing",
+      "how does refusal work"
+    ],
+    "steps": [
+      {
+        "tool": "retrieve",
+        "request": "How does chunking work",
+        "evidence_ids": [
+          "chunking-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "chunk_id": "chunking-1",
+        "source_path": "docs/ingest.md",
+        "text": "Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source.",
+        "rank": 1,
+        "title": "Ingest",
+        "heading_path": "Ingest > Chunking"
+      }
+    ],
+    "gaps": [
+      {
+        "kind": "uncovered_terms",
+        "detail": "no retrieved passage mentions: citation, happens, marker, nothing, refusal, resolves, then, work",
+        "follow_up": "citation happens marker nothing refusal resolves then work"
+      }
+    ],
+    "status": "budget_exhausted",
+    "stop_reason": "budget_spent",
+    "report": "Question: How does chunking work and what happens when a citation marker resolves to nothing then how does refusal work?\n\nStatus: partial. The step budget ended before the evidence was sufficient; the findings below are what the run grounded.\n\nFindings, each one a retrieved passage:\n\n- Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source. [1]\n\nNot established by the retrieved evidence:\n\n- no retrieved passage mentions: citation, happens, marker, nothing, refusal, resolves, then, work",
+    "citations": [
+      {
+        "marker": 1,
+        "source_path": "docs/ingest.md",
+        "chunk_id": "chunking-1",
+        "snippet": "Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source.",
+        "start_line": null,
+        "end_line": null
+      }
+    ],
+    "trace": [
+      {
+        "event": "plan_created",
+        "payload": {
+          "sub_questions": [
+            "How does chunking work",
+            "what happens when a citation marker resolves to nothing",
+            "how does refusal work"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "How does chunking work",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "How does chunking work",
+          "evidence_ids": [
+            "chunking-1"
+          ],
+          "new_evidence_ids": [
+            "chunking-1"
+          ]
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 1,
+          "keyword_overlap": 1,
+          "score": 2,
+          "sufficient": false,
+          "gaps": [
+            "no retrieved passage mentions: citation, happens, marker, nothing, refusal, resolves, then, work"
+          ]
+        }
+      },
+      {
+        "event": "synthesize",
+        "payload": {
+          "citation_markers": [
+            1
+          ],
+          "evidence_available": 1
+        }
+      },
+      {
+        "event": "stop",
+        "payload": {
+          "status": "budget_exhausted",
+          "reason": "budget_spent",
+          "steps_used": 1,
+          "max_steps": 1
+        }
+      }
+    ]
+  },
+  "off-corpus-refusal": {
+    "question": "What were the quarterly revenues in Patagonia?",
+    "max_steps": 3,
+    "plan": [
+      "What were the quarterly revenues in Patagonia?"
+    ],
+    "steps": [
+      {
+        "tool": "retrieve",
+        "request": "What were the quarterly revenues in Patagonia?",
+        "evidence_ids": []
+      },
+      {
+        "tool": "retrieve",
+        "request": "patagonia quarterly revenues",
+        "evidence_ids": []
+      }
+    ],
+    "evidence": [],
+    "gaps": [
+      {
+        "kind": "unanswered_sub_question",
+        "detail": "no passage was retrieved for the sub-question 'What were the quarterly revenues in Patagonia?'",
+        "follow_up": null
+      },
+      {
+        "kind": "unanswered_sub_question",
+        "detail": "no passage was retrieved for the sub-question 'patagonia quarterly revenues'",
+        "follow_up": null
+      },
+      {
+        "kind": "uncovered_terms",
+        "detail": "no retrieved passage mentions: patagonia, quarterly, revenues",
+        "follow_up": "patagonia quarterly revenues"
+      }
+    ],
+    "status": "refused",
+    "stop_reason": "no_evidence",
+    "report": "Question: What were the quarterly revenues in Patagonia?\n\nRefused: nothing was retrieved that could support an answer.\n\nNot established by the retrieved evidence:\n\n- no passage was retrieved for the sub-question 'What were the quarterly revenues in Patagonia?'\n- no passage was retrieved for the sub-question 'patagonia quarterly revenues'\n- no retrieved passage mentions: patagonia, quarterly, revenues",
+    "citations": [],
+    "trace": [
+      {
+        "event": "plan_created",
+        "payload": {
+          "sub_questions": [
+            "What were the quarterly revenues in Patagonia?"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "What were the quarterly revenues in Patagonia?",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "What were the quarterly revenues in Patagonia?",
+          "evidence_ids": [],
+          "new_evidence_ids": []
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 0,
+          "keyword_overlap": 0,
+          "score": 0,
+          "sufficient": false,
+          "gaps": [
+            "no passage was retrieved for the sub-question 'What were the quarterly revenues in Patagonia?'",
+            "no retrieved passage mentions: patagonia, quarterly, revenues"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "patagonia quarterly revenues",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "patagonia quarterly revenues",
+          "evidence_ids": [],
+          "new_evidence_ids": []
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 0,
+          "keyword_overlap": 0,
+          "score": 0,
+          "sufficient": false,
+          "gaps": [
+            "no passage was retrieved for the sub-question 'What were the quarterly revenues in Patagonia?'",
+            "no passage was retrieved for the sub-question 'patagonia quarterly revenues'",
+            "no retrieved passage mentions: patagonia, quarterly, revenues"
+          ]
+        }
+      },
+      {
+        "event": "synthesize",
+        "payload": {
+          "citation_markers": [],
+          "evidence_available": 0
+        }
+      },
+      {
+        "event": "stop",
+        "payload": {
+          "status": "refused",
+          "reason": "no_evidence",
+          "steps_used": 2,
+          "max_steps": 3
+        }
+      }
+    ]
+  },
+  "thin-budget-exhausted": {
+    "question": "How does chunking work?",
+    "max_steps": 1,
+    "plan": [
+      "How does chunking work?"
+    ],
+    "steps": [
+      {
+        "tool": "retrieve",
+        "request": "How does chunking work?",
+        "evidence_ids": [
+          "chunking-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "chunk_id": "chunking-1",
+        "source_path": "docs/ingest.md",
+        "text": "Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source.",
+        "rank": 1,
+        "title": "Ingest",
+        "heading_path": "Ingest > Chunking"
+      }
+    ],
+    "gaps": [
+      {
+        "kind": "uncovered_terms",
+        "detail": "no retrieved passage mentions: work",
+        "follow_up": "work"
+      }
+    ],
+    "status": "budget_exhausted",
+    "stop_reason": "budget_spent",
+    "report": "Question: How does chunking work?\n\nStatus: partial. The step budget ended before the evidence was sufficient; the findings below are what the run grounded.\n\nFindings, each one a retrieved passage:\n\n- Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source. [1]\n\nNot established by the retrieved evidence:\n\n- no retrieved passage mentions: work",
+    "citations": [
+      {
+        "marker": 1,
+        "source_path": "docs/ingest.md",
+        "chunk_id": "chunking-1",
+        "snippet": "Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source.",
+        "start_line": null,
+        "end_line": null
+      }
+    ],
+    "trace": [
+      {
+        "event": "plan_created",
+        "payload": {
+          "sub_questions": [
+            "How does chunking work?"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "How does chunking work?",
+          "top_k": 1
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "How does chunking work?",
+          "evidence_ids": [
+            "chunking-1"
+          ],
+          "new_evidence_ids": [
+            "chunking-1"
+          ]
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 1,
+          "keyword_overlap": 1,
+          "score": 2,
+          "sufficient": false,
+          "gaps": [
+            "no retrieved passage mentions: work"
+          ]
+        }
+      },
+      {
+        "event": "synthesize",
+        "payload": {
+          "citation_markers": [
+            1
+          ],
+          "evidence_available": 1
+        }
+      },
+      {
+        "event": "stop",
+        "payload": {
+          "status": "budget_exhausted",
+          "reason": "budget_spent",
+          "steps_used": 1,
+          "max_steps": 1
+        }
+      }
+    ]
+  },
+  "thin-insufficient": {
+    "question": "How does chunking work?",
+    "max_steps": 5,
+    "plan": [
+      "How does chunking work?"
+    ],
+    "steps": [
+      {
+        "tool": "retrieve",
+        "request": "How does chunking work?",
+        "evidence_ids": [
+          "chunking-1"
+        ]
+      },
+      {
+        "tool": "retrieve",
+        "request": "work",
+        "evidence_ids": []
+      }
+    ],
+    "evidence": [
+      {
+        "chunk_id": "chunking-1",
+        "source_path": "docs/ingest.md",
+        "text": "Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source.",
+        "rank": 1,
+        "title": "Ingest",
+        "heading_path": "Ingest > Chunking"
+      }
+    ],
+    "gaps": [
+      {
+        "kind": "unanswered_sub_question",
+        "detail": "no passage was retrieved for the sub-question 'work'",
+        "follow_up": null
+      },
+      {
+        "kind": "uncovered_terms",
+        "detail": "no retrieved passage mentions: work",
+        "follow_up": "work"
+      }
+    ],
+    "status": "refused",
+    "stop_reason": "insufficient_evidence",
+    "report": "Question: How does chunking work?\n\nRefused: the retrieved evidence is too thin to support an answer. What was retrieved, unaltered:\n\n- Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source. [1]\n\nNot established by the retrieved evidence:\n\n- no passage was retrieved for the sub-question 'work'\n- no retrieved passage mentions: work",
+    "citations": [
+      {
+        "marker": 1,
+        "source_path": "docs/ingest.md",
+        "chunk_id": "chunking-1",
+        "snippet": "Chunking splits a document on its heading structure before it splits on size, so a chunk carries the heading path it came from and a retrieved passage can be traced back to its place in the source.",
+        "start_line": null,
+        "end_line": null
+      }
+    ],
+    "trace": [
+      {
+        "event": "plan_created",
+        "payload": {
+          "sub_questions": [
+            "How does chunking work?"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "How does chunking work?",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "How does chunking work?",
+          "evidence_ids": [
+            "chunking-1"
+          ],
+          "new_evidence_ids": [
+            "chunking-1"
+          ]
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 1,
+          "keyword_overlap": 1,
+          "score": 2,
+          "sufficient": false,
+          "gaps": [
+            "no retrieved passage mentions: work"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "work",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "work",
+          "evidence_ids": [],
+          "new_evidence_ids": []
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 1,
+          "keyword_overlap": 1,
+          "score": 2,
+          "sufficient": false,
+          "gaps": [
+            "no passage was retrieved for the sub-question 'work'",
+            "no retrieved passage mentions: work"
+          ]
+        }
+      },
+      {
+        "event": "synthesize",
+        "payload": {
+          "citation_markers": [
+            1
+          ],
+          "evidence_available": 1
+        }
+      },
+      {
+        "event": "stop",
+        "payload": {
+          "status": "refused",
+          "reason": "insufficient_evidence",
+          "steps_used": 2,
+          "max_steps": 5
+        }
+      }
+    ]
+  },
+  "unicode-question": {
+    "question": "¿Qué hace el reranking — 再ランキング — sobre la lista corta?",
+    "max_steps": 3,
+    "plan": [
+      "¿Qué hace el reranking — 再ランキング — sobre la lista corta?"
+    ],
+    "steps": [
+      {
+        "tool": "retrieve",
+        "request": "¿Qué hace el reranking — 再ランキング — sobre la lista corta?",
+        "evidence_ids": [
+          "reranking-1"
+        ]
+      },
+      {
+        "tool": "retrieve",
+        "request": "corta el hace la lista qu sobre",
+        "evidence_ids": []
+      }
+    ],
+    "evidence": [
+      {
+        "chunk_id": "reranking-1",
+        "source_path": "docs/retrieval.md",
+        "text": "A cross-encoder reranker reads the query and a candidate passage together and reorders the shortlist. It costs far more per pair than the retriever, which is why it runs over tens of candidates instead of the whole index.",
+        "rank": 1,
+        "title": "Retrieval",
+        "heading_path": "Retrieval > Reranking"
+      }
+    ],
+    "gaps": [
+      {
+        "kind": "unanswered_sub_question",
+        "detail": "no passage was retrieved for the sub-question 'corta el hace la lista qu sobre'",
+        "follow_up": null
+      },
+      {
+        "kind": "uncovered_terms",
+        "detail": "no retrieved passage mentions: corta, el, hace, la, lista, qu, sobre",
+        "follow_up": "corta el hace la lista qu sobre"
+      }
+    ],
+    "status": "refused",
+    "stop_reason": "insufficient_evidence",
+    "report": "Question: ¿Qué hace el reranking — 再ランキング — sobre la lista corta?\n\nRefused: the retrieved evidence is too thin to support an answer. What was retrieved, unaltered:\n\n- A cross-encoder reranker reads the query and a candidate passage together and reorders the shortlist. [1]\n\nNot established by the retrieved evidence:\n\n- no passage was retrieved for the sub-question 'corta el hace la lista qu sobre'\n- no retrieved passage mentions: corta, el, hace, la, lista, qu, sobre",
+    "citations": [
+      {
+        "marker": 1,
+        "source_path": "docs/retrieval.md",
+        "chunk_id": "reranking-1",
+        "snippet": "A cross-encoder reranker reads the query and a candidate passage together and reorders the shortlist.",
+        "start_line": null,
+        "end_line": null
+      }
+    ],
+    "trace": [
+      {
+        "event": "plan_created",
+        "payload": {
+          "sub_questions": [
+            "¿Qué hace el reranking — 再ランキング — sobre la lista corta?"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "¿Qué hace el reranking — 再ランキング — sobre la lista corta?",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "¿Qué hace el reranking — 再ランキング — sobre la lista corta?",
+          "evidence_ids": [
+            "reranking-1"
+          ],
+          "new_evidence_ids": [
+            "reranking-1"
+          ]
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 1,
+          "keyword_overlap": 1,
+          "score": 2,
+          "sufficient": false,
+          "gaps": [
+            "no retrieved passage mentions: corta, el, hace, la, lista, qu, sobre"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "corta el hace la lista qu sobre",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "corta el hace la lista qu sobre",
+          "evidence_ids": [],
+          "new_evidence_ids": []
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 1,
+          "keyword_overlap": 1,
+          "score": 2,
+          "sufficient": false,
+          "gaps": [
+            "no passage was retrieved for the sub-question 'corta el hace la lista qu sobre'",
+            "no retrieved passage mentions: corta, el, hace, la, lista, qu, sobre"
+          ]
+        }
+      },
+      {
+        "event": "synthesize",
+        "payload": {
+          "citation_markers": [
+            1
+          ],
+          "evidence_available": 1
+        }
+      },
+      {
+        "event": "stop",
+        "payload": {
+          "status": "refused",
+          "reason": "insufficient_evidence",
+          "steps_used": 2,
+          "max_steps": 3
+        }
+      }
+    ]
+  },
+  "long-compound": {
+    "question": "Explain how hybrid retrieval fuses a dense ranking and a sparse ranking and then explain what a reranker adds on top of that shortlist and then explain how a citation marker is resolved back to the chunk it was retrieved from",
+    "max_steps": 20,
+    "plan": [
+      "Explain how hybrid retrieval fuses a dense ranking",
+      "a sparse ranking",
+      "explain what a reranker adds on top of that shortlist"
+    ],
+    "steps": [
+      {
+        "tool": "retrieve",
+        "request": "Explain how hybrid retrieval fuses a dense ranking",
+        "evidence_ids": [
+          "hybrid-retrieval-1",
+          "reranking-1"
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "chunk_id": "hybrid-retrieval-1",
+        "source_path": "docs/retrieval.md",
+        "text": "Hybrid retrieval runs a dense vector search and a sparse keyword search over the same corpus and fuses the two rankings with reciprocal rank fusion, so a query that only one of them understands still returns evidence.",
+        "rank": 1,
+        "title": "Retrieval",
+        "heading_path": "Retrieval > Hybrid search"
+      },
+      {
+        "chunk_id": "reranking-1",
+        "source_path": "docs/retrieval.md",
+        "text": "A cross-encoder reranker reads the query and a candidate passage together and reorders the shortlist. It costs far more per pair than the retriever, which is why it runs over tens of candidates instead of the whole index.",
+        "rank": 2,
+        "title": "Retrieval",
+        "heading_path": "Retrieval > Reranking"
+      }
+    ],
+    "gaps": [],
+    "status": "done",
+    "stop_reason": "evidence_sufficient",
+    "report": "Question: Explain how hybrid retrieval fuses a dense ranking and a sparse ranking and then explain what a reranker adds on top of that shortlist and then explain how a citation marker is resolved back to the chunk it was retrieved from\n\nFindings, each one a retrieved passage:\n\n- Hybrid retrieval runs a dense vector search and a sparse keyword search over the same corpus and fuses the two rankings with reciprocal rank fusion, so a query that only one of them understands still returns evidence. [1]\n- A cross-encoder reranker reads the query and a candidate passage together and reorders the shortlist. [2]",
+    "citations": [
+      {
+        "marker": 1,
+        "source_path": "docs/retrieval.md",
+        "chunk_id": "hybrid-retrieval-1",
+        "snippet": "Hybrid retrieval runs a dense vector search and a sparse keyword search over the same corpus and fuses the two rankings with reciprocal rank fusion, so a query that only one of them understands still returns evidence.",
+        "start_line": null,
+        "end_line": null
+      },
+      {
+        "marker": 2,
+        "source_path": "docs/retrieval.md",
+        "chunk_id": "reranking-1",
+        "snippet": "A cross-encoder reranker reads the query and a candidate passage together and reorders the shortlist.",
+        "start_line": null,
+        "end_line": null
+      }
+    ],
+    "trace": [
+      {
+        "event": "plan_created",
+        "payload": {
+          "sub_questions": [
+            "Explain how hybrid retrieval fuses a dense ranking",
+            "a sparse ranking",
+            "explain what a reranker adds on top of that shortlist"
+          ]
+        }
+      },
+      {
+        "event": "tool_call",
+        "payload": {
+          "tool": "retrieve",
+          "question": "Explain how hybrid retrieval fuses a dense ranking",
+          "top_k": 5
+        }
+      },
+      {
+        "event": "tool_result",
+        "payload": {
+          "tool": "retrieve",
+          "backend": "fake",
+          "question": "Explain how hybrid retrieval fuses a dense ranking",
+          "evidence_ids": [
+            "hybrid-retrieval-1",
+            "reranking-1"
+          ],
+          "new_evidence_ids": [
+            "hybrid-retrieval-1",
+            "reranking-1"
+          ]
+        }
+      },
+      {
+        "event": "critique",
+        "payload": {
+          "note_count": 2,
+          "keyword_overlap": 7,
+          "score": 9,
+          "sufficient": true,
+          "gaps": []
+        }
+      },
+      {
+        "event": "synthesize",
+        "payload": {
+          "citation_markers": [
+            1,
+            2
+          ],
+          "evidence_available": 2
+        }
+      },
+      {
+        "event": "stop",
+        "payload": {
+          "status": "done",
+          "reason": "evidence_sufficient",
+          "steps_used": 1,
+          "max_steps": 20
+        }
+      }
+    ]
+  }
+}
