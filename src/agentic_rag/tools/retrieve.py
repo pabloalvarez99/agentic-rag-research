@@ -27,6 +27,7 @@ from typing import Final, Protocol, runtime_checkable
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from agentic_rag.corpus import Document, load_corpus
 from agentic_rag.text import keyword_terms
 from agentic_rag.tools.base import ToolError
 
@@ -126,80 +127,13 @@ class RetrievalBackend(Protocol):
         """Return up to ``top_k`` passages for ``sub_question``, best first."""
 
 
-class Document(BaseModel):
-    """One passage of a local corpus, before a query gives it a rank.
+DEFAULT_CORPUS: Final[tuple[Document, ...]] = load_corpus()
+"""The committed corpus, read once at import from the markdown shipped with the package.
 
-    Rank is a property of a search, not of a document, so it is absent here and
-    assigned by :meth:`FakeRetrievalBackend.search`.
-    """
+Loaded eagerly so a malformed corpus fails at import rather than turning into an
+empty retrieval result somewhere inside a run.
+"""
 
-    model_config = ConfigDict(frozen=True)
-
-    chunk_id: str = Field(min_length=1)
-    source_path: str
-    text: str
-    title: str | None = None
-    heading_path: str | None = None
-
-
-DEFAULT_CORPUS: Final[tuple[Document, ...]] = (
-    Document(
-        chunk_id="hybrid-retrieval-1",
-        source_path="docs/retrieval.md",
-        title="Retrieval",
-        heading_path="Retrieval > Hybrid search",
-        text=(
-            "Hybrid retrieval runs a dense vector search and a sparse keyword search over "
-            "the same corpus and fuses the two rankings with reciprocal rank fusion, so a "
-            "query that only one of them understands still returns evidence."
-        ),
-    ),
-    Document(
-        chunk_id="reranking-1",
-        source_path="docs/retrieval.md",
-        title="Retrieval",
-        heading_path="Retrieval > Reranking",
-        text=(
-            "A cross-encoder reranker reads the query and a candidate passage together and "
-            "reorders the shortlist. It costs far more per pair than the retriever, which "
-            "is why it runs over tens of candidates instead of the whole index."
-        ),
-    ),
-    Document(
-        chunk_id="citations-1",
-        source_path="docs/answers.md",
-        title="Answers",
-        heading_path="Answers > Citations",
-        text=(
-            "Every citation marker in an answer resolves to a chunk that was actually "
-            "retrieved. A marker resolving to nothing is dropped and reported, because a "
-            "citation nobody can follow is decoration."
-        ),
-    ),
-    Document(
-        chunk_id="refusal-1",
-        source_path="docs/answers.md",
-        title="Answers",
-        heading_path="Answers > Refusal",
-        text=(
-            "Refusal is a first-class outcome. When the retrieved evidence does not support "
-            "an answer the pipeline says so and names the gap, instead of padding thin "
-            "evidence with parametric memory."
-        ),
-    ),
-    Document(
-        chunk_id="chunking-1",
-        source_path="docs/ingest.md",
-        title="Ingest",
-        heading_path="Ingest > Chunking",
-        text=(
-            "Chunking splits a document on its heading structure before it splits on size, "
-            "so a chunk carries the heading path it came from and a retrieved passage can "
-            "be traced back to its place in the source."
-        ),
-    ),
-)
-"""The committed corpus. Five short passages, enough to exercise ranking and misses."""
 
 class FakeRetrievalBackend:
     """Deterministic in-process backend over the committed corpus.

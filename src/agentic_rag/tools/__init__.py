@@ -7,12 +7,12 @@ will satisfy the same one.
 
 from __future__ import annotations
 
+from agentic_rag.corpus import Document
 from agentic_rag.tools.base import Tool, ToolError
 from agentic_rag.tools.retrieve import (
     DEFAULT_CORPUS,
     DEFAULT_TOP_K,
     PRODUCTION_RAG_URL_ENV,
-    Document,
     FakeRetrievalBackend,
     HttpRetrievalBackend,
     Passage,
