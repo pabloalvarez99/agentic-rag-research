@@ -84,7 +84,7 @@ The CLI remains a script-friendly path:
 | Fake retrieval over committed Markdown | **LIVE** | packaged corpus and corpus tests |
 | `POST /v1/research`, CLI, health | **LIVE** | API/CLI parity and OpenAPI tests |
 | Optional production-rag HTTP adapter | **LIVE (opt-in)** | mock transport; requires `PRODUCTION_RAG_URL` |
-| Golden evaluation and scorecard | **LIVE** | 18 cases; critic-can-lose included |
+| Golden evaluation and scorecard | **LIVE** | 48 cases; critic-can-lose + tool_budget |
 | Payload compare (not server ids) | **LIVE** | `POST /v1/runs/compare` + `/compare` UI; ADR-0005 |
 | Hosted smoke script | **LIVE** | `scripts/hosted_smoke.ps1` (network opt-in) |
 | Research UI and typed failures | **LIVE** | UI route/tests and real-server CI smoke |

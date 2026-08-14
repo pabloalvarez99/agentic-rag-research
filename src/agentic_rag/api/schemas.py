@@ -107,6 +107,13 @@ class ResearchRequest(BaseModel):
             "fails with capability_missing when there is none."
         ),
     )
+    max_tool_calls: dict[str, int] | None = Field(
+        default=None,
+        description=(
+            "Optional per-tool call caps (retrieve, search_notes, lexicon). "
+            "When a tool is exhausted the run stops with stop_reason tool_budget_spent."
+        ),
+    )
 
 
 class ResearchResponse(BaseModel):

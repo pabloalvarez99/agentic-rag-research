@@ -13,13 +13,17 @@ from agentic_rag.agent.graph import (
     critique_node,
     decide_outcome,
     finish_node,
+    lexicon_node,
     plan_node,
     retrieve_node,
     run_research,
+    search_notes_node,
 )
 from agentic_rag.agent.planner import MAX_SUB_QUESTIONS, SHORT_QUESTION_CHARS, plan_question
 from agentic_rag.agent.state import (
+    DEFAULT_LEXICON_MAX_CALLS,
     DEFAULT_MAX_STEPS,
+    DEFAULT_SEARCH_NOTES_MAX_CALLS,
     TERMINAL_STATUSES,
     ResearchState,
     ResearchStatus,
@@ -27,14 +31,18 @@ from agentic_rag.agent.state import (
     StepBudgetExceeded,
     StepRecord,
     StopReason,
+    ToolBudgetExceeded,
     TraceEvent,
     TraceEventName,
+    default_max_tool_calls,
 )
 from agentic_rag.agent.synthesizer import Citation, Synthesis, synthesize
 from agentic_rag.notes import Note, claim_from_text, note_from_passage, note_id
 
 __all__ = [
+    "DEFAULT_LEXICON_MAX_CALLS",
     "DEFAULT_MAX_STEPS",
+    "DEFAULT_SEARCH_NOTES_MAX_CALLS",
     "MAX_SUB_QUESTIONS",
     "SHORT_QUESTION_CHARS",
     "SUFFICIENT_SCORE",
@@ -50,18 +58,22 @@ __all__ = [
     "StepRecord",
     "StopReason",
     "Synthesis",
+    "ToolBudgetExceeded",
     "TraceEvent",
     "TraceEventName",
     "claim_from_text",
     "critique",
     "critique_node",
     "decide_outcome",
+    "default_max_tool_calls",
     "finish_node",
+    "lexicon_node",
     "note_from_passage",
     "note_id",
     "plan_node",
     "plan_question",
     "retrieve_node",
     "run_research",
+    "search_notes_node",
     "synthesize",
 ]

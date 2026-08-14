@@ -1,0 +1,29 @@
+{
+  "label": "honest single-process free-path load \u2014 not production capacity",
+  "n": 50,
+  "retriever": "fake",
+  "billed": false,
+  "hardware": {
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 165 Stepping 3, GenuineIntel",
+    "system": "Windows",
+    "python": "3.12.10"
+  },
+  "cold_start_ms": 1.819,
+  "latency_ms": {
+    "p50": 1.235,
+    "p95": 1.961,
+    "mean": 1.296,
+    "min": 0.615,
+    "max": 2.085
+  },
+  "status_counts": {
+    "done": 32,
+    "refused": 18
+  },
+  "notes": [
+    "Fixture retriever only; no HTTP P1; no OpenAI.",
+    "Single process on the machine that ran the script.",
+    "Cold-start is first run after process start, included separately."
+  ]
+}

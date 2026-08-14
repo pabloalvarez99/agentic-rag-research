@@ -16,4 +16,5 @@ def test_cli_prints_json_and_returns_success(capsys: pytest.CaptureFixture[str])
     assert exit_code == 0
     assert payload["provider"] == "fake"
     assert payload["billed_usd"] == 0.0
-    assert payload["metrics"]["passed_cases"] == payload["metrics"]["total_cases"] == 18
+    assert payload["metrics"]["passed_cases"] == payload["metrics"]["total_cases"]
+    assert payload["metrics"]["total_cases"] >= 40

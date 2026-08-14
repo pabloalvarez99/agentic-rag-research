@@ -30,11 +30,18 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from agentic_rag.agent.critic import Critique, Gap
 from agentic_rag.agent.synthesizer import Citation, Synthesis
 from agentic_rag.notes import Note, note_from_passage, note_id
+from agentic_rag.tools.lexicon import LexiconRequest, LexiconResult, LexiconTool
 from agentic_rag.tools.retrieve import Passage, RetrieveRequest, RetrieveResult, RetrieveTool
 from agentic_rag.tools.search_notes import SearchNotesRequest, SearchNotesResult, SearchNotesTool
 
 DEFAULT_MAX_STEPS = 4
 """Retrieval steps one research run may take before it must answer or refuse."""
+
+DEFAULT_SEARCH_NOTES_MAX_CALLS = 4
+"""Default cap on local note-search tool calls per run."""
+
+DEFAULT_LEXICON_MAX_CALLS = 2
+"""Default cap on fixture lexicon lookups per run."""
 
 
 class ResearchStatus(StrEnum):
@@ -63,7 +70,13 @@ TERMINAL_STATUSES: Final = frozenset(
 )
 """The statuses a finished run may carry."""
 
-StopReason = Literal["evidence_sufficient", "no_evidence", "insufficient_evidence", "budget_spent"]
+StopReason = Literal[
+    "evidence_sufficient",
+    "no_evidence",
+    "insufficient_evidence",
+    "budget_spent",
+    "tool_budget_spent",
+]
 """Why the loop stopped, from a closed set so a caller can branch on it."""
 
 TraceEventName = Literal[
@@ -91,12 +104,29 @@ class StepBudgetExceeded(RuntimeError):
     """
 
 
+class ToolBudgetExceeded(RuntimeError):
+    """A tool was called after its per-tool max_calls budget was spent.
+
+    Distinct from the global step budget: a run can still have steps left while a
+    single tool is exhausted. The loop must stop with a typed reason, never hang.
+    """
+
+
 class RunAlreadyFinished(RuntimeError):
     """A finished run was asked to record more work.
 
     A second terminal status would overwrite the first, and the trace would show
     a run that stopped twice for different reasons.
     """
+
+
+def default_max_tool_calls(max_steps: int = DEFAULT_MAX_STEPS) -> dict[str, int]:
+    """Return the default per-tool call caps for a run with ``max_steps``."""
+    return {
+        RetrieveTool.name: max_steps,
+        SearchNotesTool.name: DEFAULT_SEARCH_NOTES_MAX_CALLS,
+        LexiconTool.name: DEFAULT_LEXICON_MAX_CALLS,
+    }
 
 
 class TraceEvent(BaseModel):
@@ -162,6 +192,14 @@ class ResearchState(BaseModel):
         le=20,
         description="Hard cap on retrieval calls for this run.",
     )
+    max_tool_calls: dict[str, int] = Field(
+        default_factory=default_max_tool_calls,
+        description="Per-tool call caps. Exhaustion is a typed stop, not a hang.",
+    )
+    tool_calls_used: dict[str, int] = Field(
+        default_factory=dict,
+        description="How many times each tool has been invoked this run.",
+    )
     plan: list[str] = Field(
         default_factory=list,
         description="Sub-questions the planner produced, in order.",
@@ -220,6 +258,34 @@ class ResearchState(BaseModel):
     def budget_spent(self) -> bool:
         """Return whether the run must now answer or refuse."""
         return self.budget_remaining == 0
+
+    def remaining_tool_calls(self, tool: str) -> int:
+        """Return how many more times ``tool`` may be called this run."""
+        cap = self.max_tool_calls.get(tool)
+        if cap is None:
+            return 10**9
+        used = self.tool_calls_used.get(tool, 0)
+        return max(cap - used, 0)
+
+    def tool_budget_spent(self, tool: str | None = None) -> bool:
+        """Return whether a tool (or retrieve by default) has no remaining calls."""
+        name = tool if tool is not None else RetrieveTool.name
+        return self.remaining_tool_calls(name) == 0
+
+    def consume_tool_budget(self, tool: str) -> None:
+        """Spend one call against ``tool``'s per-tool budget.
+
+        Raises:
+            ToolBudgetExceeded: The tool's max_calls is already spent.
+            RunAlreadyFinished: The run has already stopped.
+        """
+        self._require_running()
+        if self.remaining_tool_calls(tool) <= 0:
+            raise ToolBudgetExceeded(
+                f"tool {tool!r} has spent its max_calls budget of "
+                f"{self.max_tool_calls.get(tool, 0)}; the run must answer or refuse"
+            )
+        self.tool_calls_used[tool] = self.tool_calls_used.get(tool, 0) + 1
 
     @property
     def has_evidence(self) -> bool:
@@ -321,7 +387,7 @@ class ResearchState(BaseModel):
 
         Traces ``tool_call`` with ``tool``, ``question`` and ``top_k``. It is
         recorded before the call so a run that dies inside a tool still shows
-        what it was doing.
+        what it was doing. Consumes one unit of the tool's per-tool budget.
 
         Args:
             tool: Name of the tool being called.
@@ -329,11 +395,18 @@ class ResearchState(BaseModel):
 
         Raises:
             RunAlreadyFinished: The run has already stopped.
+            ToolBudgetExceeded: The tool's max_calls is spent.
         """
-        self._require_running()
+        self.consume_tool_budget(tool)
         self._record(
             "tool_call",
-            {"tool": tool, "question": request.question, "top_k": request.top_k},
+            {
+                "tool": tool,
+                "question": request.question,
+                "top_k": request.top_k,
+                "calls_used": self.tool_calls_used.get(tool, 0),
+                "max_calls": self.max_tool_calls.get(tool),
+            },
         )
 
     def record_retrieval(self, request: RetrieveRequest, result: RetrieveResult) -> StepRecord:
@@ -473,7 +546,7 @@ class ResearchState(BaseModel):
 
     def record_notes_search_call(self, request: SearchNotesRequest) -> None:
         """Record the critic-requested local search before it executes."""
-        self._require_running()
+        self.consume_tool_budget(SearchNotesTool.name)
         self._record(
             "tool_call",
             {
@@ -481,6 +554,8 @@ class ResearchState(BaseModel):
                 "question": request.question,
                 "note_count": len(request.notes),
                 "limit": request.limit,
+                "calls_used": self.tool_calls_used.get(SearchNotesTool.name, 0),
+                "max_calls": self.max_tool_calls.get(SearchNotesTool.name),
             },
         )
 
@@ -502,6 +577,38 @@ class ResearchState(BaseModel):
                     note.citation for note in result.matches if note.citation is not None
                 ],
                 "inspected": result.inspected,
+            },
+        )
+
+    def record_lexicon_call(self, request: LexiconRequest) -> None:
+        """Record a fixture lexicon lookup before it executes."""
+        self.consume_tool_budget(LexiconTool.name)
+        self._record(
+            "tool_call",
+            {
+                "tool": LexiconTool.name,
+                "term": request.term,
+                "limit": request.limit,
+                "calls_used": self.tool_calls_used.get(LexiconTool.name, 0),
+                "max_calls": self.max_tool_calls.get(LexiconTool.name),
+            },
+        )
+
+    def record_lexicon(
+        self,
+        request: LexiconRequest,
+        result: LexiconResult,
+    ) -> TraceEvent:
+        """Record a completed lexicon lookup without changing retrieval steps."""
+        self._require_running()
+        return self._record(
+            "tool_result",
+            {
+                "tool": LexiconTool.name,
+                "backend": result.backend,
+                "term": request.term,
+                "entry_count": len(result.entries),
+                "chunk_ids": [entry.chunk_id for entry in result.entries],
             },
         )
 

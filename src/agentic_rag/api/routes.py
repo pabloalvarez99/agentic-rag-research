@@ -31,15 +31,18 @@ from agentic_rag.api.compare import (
     CompareResponse,
     compare_runs,
 )
-from agentic_rag.api.errors import ErrorResponse, RunNotFound
+from agentic_rag.api.errors import ErrorResponse, RequestInvalid, RunNotFound
 from agentic_rag.api.handlers import correlation_id
 from agentic_rag.api.metrics import run_and_count
 from agentic_rag.api.request_id import REQUEST_ID_HEADER
 from agentic_rag.api.runs import RUNS_PATH, RunArtifact
 from agentic_rag.api.schemas import ResearchRequest, ResearchResponse
 from agentic_rag.api.service import ResearchService
+from agentic_rag.pack import ExperimentPack, PackLoadRequest
 
 RESEARCH_PATH: Final = "/v1/research"
+PACK_PATH: Final = "/v1/experiments/pack"
+"""Build or validate an experiment pack from two full run payloads (no server ids)."""
 """The versioned route. The version is in the path so a second shape can coexist."""
 
 TRACE_PATH: Final = "/v1/research/trace"
@@ -361,6 +364,51 @@ def compare_run_payloads(
     """
     response.headers[REQUEST_ID_HEADER] = correlation_id(request)
     return compare_runs(payload.left, payload.right)
+
+
+@router.post(
+    PACK_PATH,
+    response_model=dict[str, Any],
+    responses={
+        HTTPStatus.UNPROCESSABLE_ENTITY: _ERROR_RESPONSES[HTTPStatus.UNPROCESSABLE_ENTITY],
+        HTTPStatus.INTERNAL_SERVER_ERROR: _ERROR_RESPONSES[HTTPStatus.INTERNAL_SERVER_ERROR],
+    },
+    summary="Build an experiment pack from two run payloads + policy",
+    response_description=(
+        "Pack manifest, policy, both runs, compare diff, and experiment records. "
+        "Never resolves server ids; payloads are the source of truth."
+    ),
+)
+def build_experiment_pack(
+    payload: PackLoadRequest,
+    request: Request,
+    response: Response,
+) -> dict[str, Any]:
+    """Assemble a pack from two finished-run payloads.
+
+    If ``compare`` is supplied it must match a recomputed payload diff; otherwise the
+    server computes the diff. The returned ``manifest.pack_hash`` is stable for the
+    same policy, runs, compare, and experiment records.
+    """
+    response.headers[REQUEST_ID_HEADER] = correlation_id(request)
+    if payload.compare is not None:
+        recomputed = compare_runs(payload.left, payload.right)
+        if recomputed.model_dump(mode="json") != payload.compare.model_dump(mode="json"):
+            raise RequestInvalid("supplied compare does not match left/right payloads")
+    pack = ExperimentPack.build(
+        payload.left,
+        payload.right,
+        policy=payload.policy,
+        experiments=tuple(payload.experiments) if payload.experiments else None,
+    )
+    return {
+        "manifest": pack.manifest.model_dump(mode="json"),
+        "policy": pack.policy.model_dump(mode="json"),
+        "left": pack.left.model_dump(mode="json"),
+        "right": pack.right.model_dump(mode="json"),
+        "compare": pack.compare.model_dump(mode="json"),
+        "experiments": [exp.model_dump(mode="json") for exp in pack.experiments],
+    }
 
 
 @router.post(

@@ -18,6 +18,7 @@ def evaluate_case(case: GoldenCase) -> CaseResult:
         tool=RetrieveTool(FakeRetrievalBackend()),
         max_steps=case.max_steps,
         top_k=case.top_k,
+        max_tool_calls=case.max_tool_calls,
     )
     if state.stop_reason is None:
         raise RuntimeError(f"case {case.id!r} did not record a stop reason")

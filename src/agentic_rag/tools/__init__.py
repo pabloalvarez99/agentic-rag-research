@@ -37,6 +37,13 @@ from agentic_rag.tools.retrieve import (
     RetrieveTool,
     build_retrieve_tool,
 )
+from agentic_rag.tools.lexicon import (
+    DEFAULT_LEXICON_LIMIT,
+    LexiconEntry,
+    LexiconRequest,
+    LexiconResult,
+    LexiconTool,
+)
 from agentic_rag.tools.search_notes import (
     DEFAULT_NOTES_LIMIT,
     SearchNotesRequest,
@@ -49,6 +56,7 @@ __all__ = [
     "DEFAULT_CORPUS",
     "DEFAULT_TOP_K",
     "DEFAULT_NOTES_LIMIT",
+    "DEFAULT_LEXICON_LIMIT",
     "ERROR_BACKEND_UNAVAILABLE",
     "ERROR_CONTRACT_MISMATCH",
     "ERROR_PROVIDER",
@@ -70,6 +78,10 @@ __all__ = [
     "RetrieveResult",
     "RetrieveTool",
     "ServiceUrl",
+    "LexiconEntry",
+    "LexiconRequest",
+    "LexiconResult",
+    "LexiconTool",
     "SearchNotesRequest",
     "SearchNotesResult",
     "SearchNotesTool",

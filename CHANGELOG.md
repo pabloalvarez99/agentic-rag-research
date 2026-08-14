@@ -7,6 +7,30 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-14
+
+### Added
+
+- Season lab ledger: [docs/SEASON.md](docs/SEASON.md) (15 invariants, eval plan, pack/tools).
+- **Experiment records** (`agentic_rag.experiment`): id, seed, budget, note ids, stop
+  reason, pack hash, tool-call counts.
+- Control goldens **n = 48** with slices and difficulty predicates; permanent
+  `critic-notes-exist-not-success` still refuses.
+- Third free-path tool **lexicon** + per-tool `max_calls`; typed stop
+  `tool_budget_spent` ([ADR-0006](docs/adr/0006-three-tools-not-a-platform.md)).
+- **Experiment packs**: `POST /v1/experiments/pack`, `/pack` UI, directory/zip round-trip.
+- Load artifact [docs/assets/load.json](docs/assets/load.json) (50 fake researches, p50/p95).
+- Optional `max_tool_calls` on research requests (OpenAPI).
+
+### Changed
+
+- Package version **1.0.0**. CASESTUDY expanded for the lab narrative and 15-min DEMO.
+
+### PLANNED (not in this release)
+
+- Durable multi-instance storage, live web tools, default paid LLM, capacity claims,
+  plugin marketplace. See release notes.
+
 ## [0.3.0] - 2026-08-14
 
 ### Added
@@ -98,7 +122,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - There is no hosted demo, streaming, authentication, rate limiting, model-based planning,
   arbitrary web/write tool, or multi-agent orchestration in this release.
 
-[Unreleased]: https://github.com/pabloalvarez99/agentic-rag-research/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/pabloalvarez99/agentic-rag-research/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/pabloalvarez99/agentic-rag-research/releases/tag/v1.0.0
 [0.3.0]: https://github.com/pabloalvarez99/agentic-rag-research/releases/tag/v0.3.0
 [0.2.0]: https://github.com/pabloalvarez99/agentic-rag-research/releases/tag/v0.2.0
 [0.1.0]: https://github.com/pabloalvarez99/agentic-rag-research/releases/tag/v0.1.0

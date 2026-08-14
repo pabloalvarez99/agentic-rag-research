@@ -90,8 +90,10 @@ class StubRunner:
         tool: RetrieveTool | None = None,
         max_steps: int = DEFAULT_MAX_STEPS,
         top_k: int = DEFAULT_TOP_K,
+        max_tool_calls: object | None = None,
         listener: TraceListener | None = None,
     ) -> ResearchState:
+        del max_tool_calls  # accepted for ResearchService parity; stubs ignore caps
         self.calls.append(
             RecordedRun(question=question, max_steps=max_steps, top_k=top_k, tool=tool)
         )
