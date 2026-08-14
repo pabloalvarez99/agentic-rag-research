@@ -30,9 +30,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from agentic_rag.agent.critic import Critique, Gap
 from agentic_rag.agent.synthesizer import Citation, Synthesis
 from agentic_rag.tools.retrieve import Passage, RetrieveRequest, RetrieveResult, RetrieveTool
+from agentic_rag.tools.search_notes import SearchNotesRequest, SearchNotesResult, SearchNotesTool
 
 DEFAULT_MAX_STEPS = 4
-"""Steps one research run may take before it must answer or refuse."""
+"""Retrieval steps one research run may take before it must answer or refuse."""
 
 
 class ResearchStatus(StrEnum):
@@ -144,7 +145,7 @@ class ResearchState(BaseModel):
         default=DEFAULT_MAX_STEPS,
         ge=1,
         le=20,
-        description="Hard cap on tool calls for this run.",
+        description="Hard cap on retrieval calls for this run.",
     )
     plan: list[str] = Field(
         default_factory=list,
@@ -216,12 +217,16 @@ class ResearchState(BaseModel):
     @property
     def requested_sub_questions(self) -> tuple[str, ...]:
         """Return every sub-question already retrieved for, oldest first."""
-        return tuple(step.request for step in self.steps)
+        return tuple(step.request for step in self.steps if step.tool == RetrieveTool.name)
 
     @property
     def unanswered_sub_questions(self) -> tuple[str, ...]:
         """Return the sub-questions that were retrieved for and returned nothing."""
-        return tuple(step.request for step in self.steps if not step.found_evidence)
+        return tuple(
+            step.request
+            for step in self.steps
+            if step.tool == RetrieveTool.name and not step.found_evidence
+        )
 
     def _record(self, event: TraceEventName, payload: dict[str, Any]) -> TraceEvent:
         """Append one trace event and return it."""
@@ -326,6 +331,37 @@ class ResearchState(BaseModel):
         )
         return record
 
+    def record_notes_search_call(self, request: SearchNotesRequest) -> None:
+        """Record the critic-requested local search before it executes."""
+        self._require_running()
+        self._record(
+            "tool_call",
+            {
+                "tool": SearchNotesTool.name,
+                "question": request.question,
+                "note_count": len(request.notes),
+                "limit": request.limit,
+            },
+        )
+
+    def record_notes_search(
+        self,
+        request: SearchNotesRequest,
+        result: SearchNotesResult,
+    ) -> TraceEvent:
+        """Record a completed local search without changing retrieval-step accounting."""
+        self._require_running()
+        return self._record(
+            "tool_result",
+            {
+                "tool": SearchNotesTool.name,
+                "backend": "in_process",
+                "question": request.question,
+                "evidence_ids": [note.chunk_id for note in result.matches],
+                "inspected": result.inspected,
+            },
+        )
+
     def record_critique(self, verdict: Critique) -> None:
         """Adopt a critique's verdict and its named gaps.
 
@@ -348,6 +384,7 @@ class ResearchState(BaseModel):
                 "score": verdict.score,
                 "sufficient": verdict.sufficient,
                 "gaps": [gap.detail for gap in verdict.gaps],
+                "requested_tool": verdict.requested_tool,
             },
         )
 

@@ -44,6 +44,10 @@ from agentic_rag.tools.retrieve import (
     RetrieveTool,
     build_retrieve_tool,
 )
+from agentic_rag.tools.search_notes import SearchNotesRequest, SearchNotesTool
+
+DEFAULT_NOTES_TOOL = SearchNotesTool()
+"""Stateless free-path tool used when the critic requests a note review."""
 
 
 def decide_outcome(
@@ -109,6 +113,13 @@ def critique_node(state: ResearchState) -> Critique:
     return verdict
 
 
+def search_notes_node(state: ResearchState, tool: SearchNotesTool) -> None:
+    """Search gathered evidence when retrieval capacity remains, without adding evidence."""
+    request = SearchNotesRequest(question=state.question, notes=tuple(state.evidence))
+    state.record_notes_search_call(request)
+    state.record_notes_search(request, tool.run(request))
+
+
 def finish_node(state: ResearchState, *, sufficient: bool) -> None:
     """Compose the report the outcome calls for and close the run."""
     status, reason = decide_outcome(
@@ -132,6 +143,7 @@ def run_research(
     question: str,
     *,
     tool: RetrieveTool | None = None,
+    notes_tool: SearchNotesTool | None = DEFAULT_NOTES_TOOL,
     max_steps: int = DEFAULT_MAX_STEPS,
     top_k: int = DEFAULT_TOP_K,
 ) -> ResearchState:
@@ -142,6 +154,10 @@ def run_research(
         tool: The retrieve tool to spend steps on. Omitted, the free path is
             built by :func:`~agentic_rag.tools.retrieve.build_retrieve_tool`,
             which contacts nothing unless ``PRODUCTION_RAG_URL`` is set.
+        notes_tool: Optional deterministic tool for searching evidence already gathered.
+            The critic requests it only after finding sufficient evidence, and it runs
+            only when retrieval capacity remains. It is local post-processing rather than
+            another retrieval step. Pass ``None`` to disable it.
         max_steps: Hard cap on tool calls, enforced by the state.
         top_k: Passages one retrieval step may return.
 
@@ -167,6 +183,12 @@ def run_research(
         retrieve_node(state, retriever, sub_question, top_k)
         verdict = critique_node(state)
         if verdict.sufficient:
+            if (
+                verdict.requested_tool == SearchNotesTool.name
+                and notes_tool is not None
+                and not state.budget_spent
+            ):
+                search_notes_node(state, notes_tool)
             sufficient = True
             break
 

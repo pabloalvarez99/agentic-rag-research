@@ -188,6 +188,8 @@ def test_the_trace_records_every_stage_in_order(tool: RetrieveTool) -> None:
         "tool_call",
         "tool_result",
         "critique",
+        "tool_call",
+        "tool_result",
         "synthesize",
         "stop",
     ]
@@ -199,6 +201,22 @@ def test_the_trace_records_every_stage_in_order(tool: RetrieveTool) -> None:
         verdict.payload["keyword_overlap"]
     )
     assert verdict.payload["sufficient"] is True
+    assert verdict.payload["requested_tool"] == "search_notes"
+    notes_call, notes_result = state.trace[4], state.trace[5]
+    assert notes_call.payload["tool"] == "search_notes"
+    assert notes_result.payload["backend"] == "in_process"
+    assert notes_result.payload["inspected"] == len(state.evidence)
+
+
+def test_note_search_is_optional_and_stays_inside_the_step_budget(tool: RetrieveTool) -> None:
+    with_notes = run_research(ANSWERABLE, tool=tool, max_steps=4)
+    without_notes = run_research(ANSWERABLE, tool=tool, notes_tool=None, max_steps=4)
+    no_room = run_research(ANSWERABLE, tool=tool, max_steps=1)
+
+    assert any(event.payload.get("tool") == "search_notes" for event in with_notes.trace)
+    assert all(event.payload.get("tool") != "search_notes" for event in without_notes.trace)
+    assert all(event.payload.get("tool") != "search_notes" for event in no_room.trace)
+    assert with_notes.steps_taken <= with_notes.max_steps
 
 
 def test_the_trace_carries_no_wall_clock_field(tool: RetrieveTool) -> None:

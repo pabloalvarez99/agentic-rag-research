@@ -91,7 +91,7 @@ class ResearchRequest(BaseModel):
         default=DEFAULT_MAX_STEPS,
         ge=MIN_MAX_STEPS,
         le=MAX_MAX_STEPS,
-        description="Hard cap on tool calls for this run.",
+        description="Hard cap on retrieval steps for this run.",
     )
     top_k: int = Field(
         default=DEFAULT_TOP_K,
@@ -126,7 +126,7 @@ class ResearchResponse(BaseModel):
         default_factory=list,
         description="One entry per marker in the report, in marker order.",
     )
-    steps_used: int = Field(ge=0, description="Tool calls the run actually spent.")
+    steps_used: int = Field(ge=0, description="Retrieval steps the run actually spent.")
     trace: list[TraceEvent] = Field(
         default_factory=list,
         description="Every event the run recorded, oldest first, ending in 'stop'.",

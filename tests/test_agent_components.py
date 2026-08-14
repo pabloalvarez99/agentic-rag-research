@@ -89,6 +89,18 @@ def test_the_score_is_passages_plus_covered_question_terms() -> None:
     assert verdict.gaps == ()
 
 
+def test_the_critic_requests_note_search_only_when_multiple_notes_are_sufficient() -> None:
+    one = critique("hybrid retrieval", [passage("a", "Hybrid retrieval fuses rankings.")])
+    many = critique(
+        "hybrid retrieval",
+        [passage("a", "Hybrid search."), passage("b", "Retrieval fuses rankings.")],
+    )
+
+    assert one.requested_tool is None
+    assert many.sufficient
+    assert many.requested_tool == "search_notes"
+
+
 def test_evidence_below_the_threshold_is_not_sufficient() -> None:
     verdict = critique("hybrid retrieval reranking", [passage("a", "Hybrid search.")])
 

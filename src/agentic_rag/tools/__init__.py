@@ -37,11 +37,18 @@ from agentic_rag.tools.retrieve import (
     RetrieveTool,
     build_retrieve_tool,
 )
+from agentic_rag.tools.search_notes import (
+    DEFAULT_NOTES_LIMIT,
+    SearchNotesRequest,
+    SearchNotesResult,
+    SearchNotesTool,
+)
 from agentic_rag.tools.service_url import InvalidServiceUrlError, ServiceUrl
 
 __all__ = [
     "DEFAULT_CORPUS",
     "DEFAULT_TOP_K",
+    "DEFAULT_NOTES_LIMIT",
     "ERROR_BACKEND_UNAVAILABLE",
     "ERROR_CONTRACT_MISMATCH",
     "ERROR_PROVIDER",
@@ -63,6 +70,9 @@ __all__ = [
     "RetrieveResult",
     "RetrieveTool",
     "ServiceUrl",
+    "SearchNotesRequest",
+    "SearchNotesResult",
+    "SearchNotesTool",
     "Tool",
     "ToolError",
     "build_retrieve_tool",

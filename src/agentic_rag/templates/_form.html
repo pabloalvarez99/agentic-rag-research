@@ -13,7 +13,7 @@
     <input id="max_steps" name="max_steps" type="number" required
       min="{{ min_max_steps }}" max="{{ max_max_steps }}" value="{{ selected_max_steps }}"
       aria-describedby="steps-help">
-    <p class="hint" id="steps-help">Hard budget shared by retrieval and optional local note-search tool calls.</p>
+    <p class="hint" id="steps-help">Hard retrieval budget. Local note search runs only when capacity remains and never contacts a provider.</p>
 
     <div class="actions"><button type="submit">Run research</button><a href="/docs">API contract</a></div>
   </form>

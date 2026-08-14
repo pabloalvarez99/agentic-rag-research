@@ -36,6 +36,9 @@ SUFFICIENT_SCORE: Final = 3
 GapKind = Literal["no_evidence", "unanswered_sub_question", "uncovered_terms", "thin_evidence"]
 """What kind of hole in the evidence a gap describes."""
 
+CriticToolRequest = Literal["search_notes"]
+"""Optional local tool the critic asks the loop to run before synthesis."""
+
 
 class Gap(BaseModel):
     """One named hole in the evidence.
@@ -76,6 +79,13 @@ class Critique(BaseModel):
     gaps: tuple[Gap, ...] = Field(
         default=(),
         description="Named holes in the evidence. Always empty when sufficient.",
+    )
+    requested_tool: CriticToolRequest | None = Field(
+        default=None,
+        description=(
+            "Local post-processing tool requested before synthesis. It may only inspect "
+            "evidence already gathered and does not replace a retrieval step."
+        ),
     )
 
 
@@ -120,6 +130,7 @@ def critique(
             keyword_overlap=len(covered),
             score=score,
             sufficient=True,
+            requested_tool="search_notes" if note_count > 1 else None,
         )
 
     gaps: list[Gap] = []
