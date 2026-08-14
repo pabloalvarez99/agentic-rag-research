@@ -36,6 +36,7 @@ from agentic_rag.agent.state import (
     ResearchState,
     ResearchStatus,
     StopReason,
+    TraceListener,
 )
 from agentic_rag.agent.synthesizer import synthesize
 from agentic_rag.tools.retrieve import (
@@ -96,17 +97,27 @@ def plan_node(state: ResearchState) -> None:
 
 
 def retrieve_node(state: ResearchState, tool: RetrieveTool, sub_question: str, top_k: int) -> None:
-    """Spend one step retrieving for ``sub_question`` and absorb what comes back."""
+    """Spend one step retrieving for ``sub_question``, absorb it, and note what it says.
+
+    Writing the notes here rather than inside the state's retrieval bookkeeping keeps
+    the two facts separate: the step spent a budget unit and returned these chunk ids,
+    and the run then decided which claims it is relying on. A backend that returns a
+    passage the run cannot take a claim from spends the step either way, and the trace
+    shows both halves.
+    """
     request = RetrieveRequest(question=sub_question, top_k=top_k)
     state.record_tool_call(tool.name, request)
-    state.record_retrieval(request, tool.run(request))
+    result = tool.run(request)
+    state.record_retrieval(request, result)
+    for passage in result.passages:
+        state.record_note_from_passage(passage)
 
 
 def critique_node(state: ResearchState) -> Critique:
-    """Judge the evidence gathered so far and record the verdict."""
+    """Judge the notes gathered so far and record the verdict."""
     verdict = critique(
         state.question,
-        state.evidence,
+        state.notes,
         unanswered=state.unanswered_sub_questions,
     )
     state.record_critique(verdict)
@@ -114,8 +125,8 @@ def critique_node(state: ResearchState) -> Critique:
 
 
 def search_notes_node(state: ResearchState, tool: SearchNotesTool) -> None:
-    """Search gathered evidence when retrieval capacity remains, without adding evidence."""
-    request = SearchNotesRequest(question=state.question, notes=tuple(state.evidence))
+    """Rank the run's own notes when retrieval capacity remains, without adding evidence."""
+    request = SearchNotesRequest(question=state.question, notes=tuple(state.notes))
     state.record_notes_search_call(request)
     state.record_notes_search(request, tool.run(request))
 
@@ -146,6 +157,7 @@ def run_research(
     notes_tool: SearchNotesTool | None = DEFAULT_NOTES_TOOL,
     max_steps: int = DEFAULT_MAX_STEPS,
     top_k: int = DEFAULT_TOP_K,
+    listener: TraceListener | None = None,
 ) -> ResearchState:
     """Research ``question`` under a step budget and return the finished state.
 
@@ -160,12 +172,17 @@ def run_research(
             another retrieval step. Pass ``None`` to disable it.
         max_steps: Hard cap on tool calls, enforced by the state.
         top_k: Passages one retrieval step may return.
+        listener: Called with each trace event as it is recorded, before the run
+            finishes. It is how a caller watches a run in progress; it cannot
+            change one, and the loop does not wait on it.
 
     Returns:
         The state, always with a terminal status, a report, and a trace whose
         last event is ``stop``.
     """
     state = ResearchState(question=question, max_steps=max_steps)
+    if listener is not None:
+        state.subscribe(listener)
     retriever = build_retrieve_tool() if tool is None else tool
 
     plan_node(state)

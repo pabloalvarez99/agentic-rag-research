@@ -13,6 +13,7 @@
         <div><dt>Status</dt><dd>{{ result.status.value }}</dd></div>
         <div><dt>Steps used</dt><dd>{{ result.steps_used }}</dd></div>
         <div><dt>Citations</dt><dd>{{ result.citations | length }}</dd></div>
+        <div><dt>Stop reason</dt><dd>{{ result.trace[-1].payload.reason if result.trace and result.trace[-1].event == 'stop' else '—' }}</dd></div>
       </dl>
     </div>
     <section aria-labelledby="report-heading">
@@ -35,13 +36,11 @@
       <ol>{% for entry in result.trace %}<li><span class="timeline-dot" aria-hidden="true"></span><div>
         <h3>{{ entry.event | replace('_', ' ') }}</h3><pre>{{ entry.payload | tojson(indent=2) }}</pre>
       </div></li>{% endfor %}</ol>
-      <form class="trace-actions" action="/ui/trace.json" method="post">
-        <input type="hidden" name="question" value="{{ question }}">
-        <input type="hidden" name="max_steps" value="{{ selected_max_steps }}">
-        <button type="submit">Download trace (JSON)</button>
-        <span class="hint">Same events as <code>trace</code> in <code>POST /v1/research</code>. The run is deterministic, so the file matches this page.</span>
-      </form>
+      <p class="trace-actions">
+        <a class="download-link" href="/v1/runs/{{ result.request_id }}/trace.json">Download stored trace (JSON)</a>
+        <span class="hint">Same events as this page, served from <code>GET /v1/runs/{{ result.request_id }}/trace.json</code> — the artifact this process stored, not a second run.</span>
+      </p>
     </details>
-    <footer class="diagnostics"><span>Request ID</span><code>{{ result.request_id }}</code><span class="mode-tag">Demo mode (free / deterministic)</span></footer>
+    <footer class="diagnostics"><span>Request ID</span><code>{{ result.request_id }}</code><span class="mode-tag">Fixture retriever · control demo · $0</span></footer>
   </article>
 {% endblock %}

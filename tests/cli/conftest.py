@@ -16,6 +16,7 @@ from agentic_rag.agent.state import (
     ResearchState,
     ResearchStatus,
     StopReason,
+    TraceListener,
 )
 from agentic_rag.agent.synthesizer import synthesize
 from agentic_rag.api.schemas import RetrieverChoice
@@ -68,10 +69,15 @@ class StubRunner:
         tool: RetrieveTool | None = None,
         max_steps: int = DEFAULT_MAX_STEPS,
         top_k: int = DEFAULT_TOP_K,
+        listener: TraceListener | None = None,
     ) -> ResearchState:
         if self.error is not None:
             raise self.error
-        return self.state if self.state is not None else build_state(question=question)
+        state = self.state if self.state is not None else build_state(question=question)
+        if listener is not None:
+            for event in state.trace:
+                listener(event)
+        return state
 
 
 @dataclass

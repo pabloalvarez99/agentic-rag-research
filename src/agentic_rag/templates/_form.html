@@ -3,11 +3,11 @@
     <div><p class="eyebrow">Bounded run</p><h2 id="query-title">Research a question</h2></div>
     <span class="mode-tag">Demo mode (free / deterministic)</span>
   </div>
-  <form action="/ui/research" method="post">
+  <form id="research-form" action="/ui/research" method="post">
     <label for="question">Question</label>
     <textarea id="question" name="question" rows="4" required maxlength="8000"
       aria-describedby="question-help">{{ question }}</textarea>
-    <p class="hint" id="question-help">The in-process fake retriever uses the committed corpus. No API key or provider network is used.</p>
+    <p class="hint" id="question-help">The in-process fake retriever uses the committed corpus. No API key or provider network is used. With JavaScript on, steps stream live (plan → retrieve → critique).</p>
 
     <label for="max_steps">Maximum steps</label>
     <input id="max_steps" name="max_steps" type="number" required
@@ -17,4 +17,34 @@
 
     <div class="actions"><button type="submit">Run research</button><a href="/docs">API contract</a></div>
   </form>
+</section>
+
+<section id="live-run" class="outcome" hidden aria-live="polite" aria-labelledby="live-heading">
+  <div class="outcome-header">
+    <div>
+      <p class="eyebrow">Live run</p>
+      <h2 id="live-heading">Streaming steps</h2>
+    </div>
+    <p id="live-status" class="mode-tag">idle</p>
+  </div>
+  <p id="live-error" class="error-message" hidden></p>
+  <details class="trace" open>
+    <summary>Trace timeline <span>SSE · offsets, not wall clock</span></summary>
+    <ol id="live-timeline"></ol>
+  </details>
+  <article id="live-outcome" hidden>
+    <section aria-labelledby="live-report-heading">
+      <h3 id="live-report-heading">Report</h3>
+      <pre id="live-report" class="report"></pre>
+    </section>
+    <section aria-labelledby="live-citations-heading">
+      <h3 id="live-citations-heading">Citations</h3>
+      <div id="live-citations"></div>
+    </section>
+    <p class="trace-actions">
+      <a id="live-download" class="download-link" hidden href="#">Download stored trace (JSON)</a>
+      <span class="hint">Fetched from <code>GET /v1/runs/{id}/trace.json</code> — the artifact this process stored, not a re-run.</span>
+    </p>
+    <footer class="diagnostics"><span>Request ID</span><code id="live-request-id"></code><span class="mode-tag">Fixture retriever · control demo · $0</span></footer>
+  </article>
 </section>

@@ -21,14 +21,15 @@ observability layer that arrives with the HTTP route.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from enum import StrEnum
-from typing import Any, Final, Literal
+from typing import Any, Final, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from agentic_rag.agent.critic import Critique, Gap
 from agentic_rag.agent.synthesizer import Citation, Synthesis
+from agentic_rag.notes import Note, note_from_passage, note_id
 from agentic_rag.tools.retrieve import Passage, RetrieveRequest, RetrieveResult, RetrieveTool
 from agentic_rag.tools.search_notes import SearchNotesRequest, SearchNotesResult, SearchNotesTool
 
@@ -69,11 +70,16 @@ TraceEventName = Literal[
     "plan_created",
     "tool_call",
     "tool_result",
+    "note_added",
     "critique",
     "synthesize",
     "stop",
 ]
 """The events a run may record, in the order a complete run emits them."""
+
+
+TraceListener: TypeAlias = Callable[["TraceEvent"], None]
+"""Called with each event as a run records it. See :meth:`ResearchState.subscribe`."""
 
 
 class StepBudgetExceeded(RuntimeError):
@@ -97,13 +103,22 @@ class TraceEvent(BaseModel):
     """One thing that happened, in the order it happened.
 
     ``payload`` is a plain mapping rather than a per-event model because the
-    trace is read as JSON by people and by tests, and a union of six models buys
-    nothing at the point where it is serialised. What each event carries is
+    trace is read as JSON by people and by tests, and a union of seven models
+    buys nothing at the point where it is serialised. What each event carries is
     documented on the ``record_*`` method that emits it.
+
+    ``offset`` is the event's position in the run, counted from zero. It is what
+    a streaming client resumes from and what a reader cites when pointing at one
+    event out of thirty. It is deliberately an ordinal and **not** a timestamp: a
+    free-path run is deterministic, so two runs of the same question under the
+    same budget serialise byte for byte, and a wall clock would be the one field
+    that made every trace differ from every other trace of the same run. Timings
+    belong to the observability layer, which has a request id to bind them to.
     """
 
     model_config = ConfigDict(frozen=True)
 
+    offset: int = Field(default=0, ge=0, description="Position of this event in the run.")
     event: TraceEventName = Field(description="What happened.")
     payload: dict[str, Any] = Field(default_factory=dict, description="Details of the event.")
 
@@ -159,6 +174,10 @@ class ResearchState(BaseModel):
         default_factory=list,
         description="Distinct passages gathered so far, in the order they were first seen.",
     )
+    notes: list[Note] = Field(
+        default_factory=list,
+        description="What the run is relying on, in the order the claims were written.",
+    )
     gaps: list[Gap] = Field(
         default_factory=list,
         description="What the most recent critique found missing. Empty once sufficient.",
@@ -183,6 +202,9 @@ class ResearchState(BaseModel):
         default_factory=list,
         description="Every recorded event, oldest first.",
     )
+
+    _listener: TraceListener | None = PrivateAttr(default=None)
+    """Optional observer of events as they are recorded. Never serialised."""
 
     @property
     def steps_taken(self) -> int:
@@ -210,6 +232,21 @@ class ResearchState(BaseModel):
         return tuple(passage.chunk_id for passage in self.evidence)
 
     @property
+    def note_ids(self) -> tuple[str, ...]:
+        """Return the ids of the notes written so far, oldest first."""
+        return tuple(note.id for note in self.notes)
+
+    @property
+    def grounded_notes(self) -> tuple[Note, ...]:
+        """Return the notes a retrieved chunk backs."""
+        return tuple(note for note in self.notes if note.is_grounded)
+
+    @property
+    def cited_chunk_ids(self) -> frozenset[str]:
+        """Return the chunk ids the note store already rests on."""
+        return frozenset(note.citation for note in self.notes if note.citation is not None)
+
+    @property
     def is_finished(self) -> bool:
         """Return whether a terminal status has been recorded."""
         return self.status.is_terminal
@@ -228,10 +265,29 @@ class ResearchState(BaseModel):
             if step.tool == RetrieveTool.name and not step.found_evidence
         )
 
+    def subscribe(self, listener: TraceListener) -> None:
+        """Call ``listener`` with every event recorded from now on.
+
+        This is what makes a run watchable while it is still running: the stream
+        route hands in a callback that puts each event on a queue. It is one
+        listener rather than a list, because two observers of one run is not a
+        thing this project has, and a list would invite an ordering question
+        nobody has an answer for.
+
+        A listener sees events, never the state. It cannot advance a run, and the
+        run does not wait on what it does with them.
+
+        Args:
+            listener: Called with each event as it is appended.
+        """
+        self._listener = listener
+
     def _record(self, event: TraceEventName, payload: dict[str, Any]) -> TraceEvent:
-        """Append one trace event and return it."""
-        entry = TraceEvent(event=event, payload=payload)
+        """Append one trace event, notify any listener, and return it."""
+        entry = TraceEvent(offset=len(self.trace), event=event, payload=payload)
         self.trace.append(entry)
+        if self._listener is not None:
+            self._listener(entry)
         return entry
 
     def _require_running(self) -> None:
@@ -331,6 +387,90 @@ class ResearchState(BaseModel):
         )
         return record
 
+    def record_note(
+        self,
+        *,
+        claim: str,
+        source: str,
+        context: str | None = None,
+        citation: str | None = None,
+    ) -> Note | None:
+        """Write one note into the store and return it.
+
+        The store mints the id, so a caller cannot invent one that collides with a
+        note already written or leave a hole in the sequence. Traces ``note_added``
+        with the whole note: a claim that entered the run without a trace event is a
+        claim nobody can date.
+
+        A note is skipped, and nothing is traced, when it duplicates one already
+        written — same citation and same claim. Duplicates would inflate every count
+        the critic reads while adding nothing new to answer from.
+
+        Args:
+            claim: What is being relied on, already lifted from its source.
+            source: Corpus-relative path the claim came from.
+            context: Heading ancestry the claim sits under, when one is known.
+            citation: Chunk id backing the claim, or ``None`` when nothing does.
+
+        Returns:
+            The note, or ``None`` when the claim was empty or already written.
+
+        Raises:
+            RunAlreadyFinished: The run has already stopped.
+        """
+        self._require_running()
+        if not claim:
+            return None
+        if any(note.citation == citation and note.claim == claim for note in self.notes):
+            return None
+
+        note = Note(
+            id=note_id(len(self.notes) + 1),
+            claim=claim,
+            source=source,
+            context=context,
+            citation=citation,
+        )
+        self.notes.append(note)
+        self._record(
+            "note_added",
+            {
+                "id": note.id,
+                "claim": note.claim,
+                "source": note.source,
+                "context": note.context,
+                "citation": note.citation,
+                "grounded": note.is_grounded,
+            },
+        )
+        return note
+
+    def record_note_from_passage(self, passage: Passage) -> Note | None:
+        """Write the note a retrieved passage supports, if it supports one.
+
+        The claim is lifted verbatim by :func:`~agentic_rag.notes.claim_from_text`;
+        nothing here rewrites what a backend returned.
+
+        Args:
+            passage: The retrieved chunk to take a claim from.
+
+        Returns:
+            The note, or ``None`` when the passage carried no claim or was already
+            noted.
+
+        Raises:
+            RunAlreadyFinished: The run has already stopped.
+        """
+        candidate = note_from_passage(passage, position=len(self.notes) + 1)
+        if candidate is None:
+            return None
+        return self.record_note(
+            claim=candidate.claim,
+            source=candidate.source,
+            context=candidate.context,
+            citation=candidate.citation,
+        )
+
     def record_notes_search_call(self, request: SearchNotesRequest) -> None:
         """Record the critic-requested local search before it executes."""
         self._require_running()
@@ -357,7 +497,10 @@ class ResearchState(BaseModel):
                 "tool": SearchNotesTool.name,
                 "backend": "in_process",
                 "question": request.question,
-                "evidence_ids": [note.chunk_id for note in result.matches],
+                "note_ids": [note.id for note in result.matches],
+                "evidence_ids": [
+                    note.citation for note in result.matches if note.citation is not None
+                ],
                 "inspected": result.inspected,
             },
         )
@@ -380,6 +523,8 @@ class ResearchState(BaseModel):
             "critique",
             {
                 "note_count": verdict.note_count,
+                "grounded_note_count": verdict.grounded_note_count,
+                "relevant_note_count": verdict.relevant_note_count,
                 "keyword_overlap": verdict.keyword_overlap,
                 "score": verdict.score,
                 "sufficient": verdict.sufficient,

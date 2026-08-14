@@ -54,19 +54,23 @@ The loader also rejects duplicate ids, missing required categories, citation
 bounds larger than `max_steps × top_k`, `no_evidence` cases that allow citations,
 unknown chunk ids, and pairs whose questions differ.
 
-## Scorecard metrics
+## Scorecard metrics (control only)
 
 The runner reports each case's observed status, stop reason, steps, citation
 presence/count, pass/fail verdict, and exact failures. Aggregate metrics are:
 
 - `total_cases`, `passed_cases`, and `pass_rate`;
-- `mean_steps_used`;
-- `has_citations_rate`; and
-- `status_counts`.
+- `mean_steps_used` — retrieval steps spent under the budget;
+- `has_citations_rate` / `citation_present_rate` — fraction of cases with ≥1 citation;
+- `status_counts` — terminal status distribution;
+- `stop_reason_counts` — closed-set stop reason distribution;
+- `unanswerable_cases`, `refused_unanswerable`, `refused_unanswerable_rate` — whether
+  off-corpus questions refuse rather than invent.
 
-These measure deterministic contract conformance on a committed lexical fixture.
-They do not measure answer quality, retrieval quality, faithfulness, latency, or
-production readiness, and they do not establish agent uplift over a single pass.
+These measure **control**: budgets, stop reasons, citation presence, and honest
+refusal on a committed lexical fixture. They do **not** measure answer quality,
+retrieval quality, faithfulness, latency, production readiness, or agent uplift.
+They never claim to beat another system.
 
 ## Curation and provenance
 

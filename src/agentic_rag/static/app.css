@@ -55,6 +55,18 @@ button:hover { background: #86e4e8; }
 .trace pre { margin: 0; padding: .75rem; overflow-x: auto; color: var(--muted); background: var(--sunk); border-radius: 9px; font-size: .8rem; }
 .trace-actions { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; margin-top: .5rem; }
 .trace-actions .hint { margin: 0; }
+.download-link {
+  display: inline-flex;
+  padding: .72rem 1.2rem;
+  color: #071014;
+  background: var(--cyan);
+  border: 1px solid var(--cyan);
+  border-radius: 999px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.download-link:hover { background: #86e4e8; }
+#live-run { margin-top: 1rem; }
 .diagnostics { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; margin-top: 1.5rem; padding-top: 1rem; color: var(--muted); border-top: 1px solid var(--line); font-size: .84rem; }
 .page-footer { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; margin-top: 2.2rem; padding-top: 1.1rem; color: var(--muted); border-top: 1px solid var(--line); font-size: .85rem; }
 .page-footer nav { display: flex; gap: 1rem; }

@@ -25,7 +25,7 @@ re-litigate those decisions and does not reimplement that retrieval stack; it co
 it and asks the next question: **what does an agent add over a single retrieval pass,
 and how do you tell?**
 
-## Status: v0.1.0 — M1–M6 live on the free path
+## Status: v0.2.0 — auditable free path (notes store · run artifacts · stream · control evals)
 
 The loop is complete as a library and exposed through both runtime surfaces:
 `plan → retrieve → critique`, bounded by a step budget, ending in a report whose every
@@ -35,33 +35,30 @@ server-rendered research UI are live ([docs/SHIP.md](docs/SHIP.md)). The optiona
 retriever can call a running production-rag instance, but the default path contacts
 nothing and reads no API key.
 
-**Try it without cloning: <https://pax-agentic-rag.vercel.app>.** Submit a question and
-inspect the report, citations, terminal status, request id, steps used, and expandable
-trace timeline. Locally the same page is <http://127.0.0.1:8010/>.
-
-The hosted copy runs the loop over the **fixture retriever** — a deterministic
-in-process backend over a small committed corpus. It demonstrates the agent's contract
-(planning, budget accounting, citation resolution, refusal, trace) and supports **no
-claim whatsoever about retrieval or answer quality**. It sets no `PRODUCTION_RAG_URL`,
-so `retriever: "http"` there fails with `capability_missing`, by design.
+**Try it without cloning: <https://pax-agentic-rag.vercel.app>.** Fixture retriever only —
+**control demo, zero quality claim.** Stream steps live, refuse an off-corpus question,
+and download the stored trace. 10-minute script: [docs/CASESTUDY.md](docs/CASESTUDY.md).
+Locally the same page is <http://127.0.0.1:8010/>.
 
 | Capability | State | Evidence |
 | --- | --- | --- |
 | Plan → retrieve → critique, bounded by `max_steps` | **LIVE** | loop and state tests |
+| Typed note store + critic on grounded/on-topic notes | **LIVE** | [ADR-0004](docs/adr/0004-notes-are-a-store.md); notes/store tests |
 | Grounded report, refusal, and stop reasons | **LIVE** | synthesizer and terminal-outcome tests |
-| Full deterministic execution trace | **LIVE** | six typed events ending in `stop` |
+| Full deterministic execution trace (offsets, not wall clock) | **LIVE** | typed events ending in `stop` |
 | FastAPI `POST /v1/research` and JSON CLI | **LIVE** | OpenAPI, API/CLI parity, and error tests |
+| `GET /v1/runs/{id}` run artifact + trace download | **LIVE** | bounded in-process store; runs tests |
+| `GET /v1/research/stream` SSE step stream | **LIVE** | plan → retrieve → critique events; stream tests |
 | Fake retriever over packaged Markdown | **LIVE** | default, offline, credential-free |
-| production-rag HTTP adapter | **LIVE (opt-in)** | mock HTTP transport; no live-service result claimed |
+| production-rag HTTP adapter | **LIVE (opt-in)** | mock transport; live slice gated + skipped in CI |
 | 17-case golden dataset | **LIVE** | five behavior slices; [schema and coverage](data/eval/README.md) |
-| Deterministic eval runner and JSON scorecard | **LIVE** | terminal behavior, steps, citations, sources, and gaps |
-| Research UI and typed HTML failures | **LIVE** | `/`, `/ui/research`, UI tests, and CI smoke |
+| Control scorecard (steps, stop reasons, citations, refused_unanswerable) | **LIVE** | never quality / never "beats GPT" |
+| Research UI + live step timeline + stored-trace download | **LIVE** | `/`, SSE, `GET /v1/runs/{id}/trace.json` |
 | Local `search_notes` tool | **LIVE (optional)** | critic request, deterministic tool tests, trace events |
-| Tagged release | **LIVE** | [v0.1.0 notes](docs/releases/v0.1.0.md); written before the demo was hosted |
+| Tagged release | **LIVE** | [v0.2.0 notes](docs/releases/v0.2.0.md) |
 | UI captures of the three outcomes | **LIVE** | [committed PNGs](#what-that-looks-like-before-you-run-it) rebuilt by `scripts/capture_ui.py` |
-| Trace export as JSON, from the API and the page | **LIVE** | `POST /v1/research/trace`; the result page's download button; export tests |
-| `GET /metrics` Prometheus exposition | **LIVE** | `process_up`, `requests_total`, `research_total`, `research_steps_used_total`; metrics tests |
-| Hosted free-path demo | **LIVE** | [pax-agentic-rag.vercel.app](https://pax-agentic-rag.vercel.app) — Vercel, fixture retriever, no `PRODUCTION_RAG_URL` |
+| `GET /metrics` Prometheus exposition | **LIVE** | `process_up`, `requests_total`, `research_total`, `research_steps_used_total` |
+| Hosted free-path demo | **LIVE** | [pax-agentic-rag.vercel.app](https://pax-agentic-rag.vercel.app) — fixture only |
 
 Start with the [architecture](docs/architecture.md), read the one-page
 [ship truth](docs/SHIP.md), or use the [case study](docs/CASESTUDY.md) as the
@@ -86,13 +83,20 @@ state.stop_reason    # 'evidence_sufficient'
 state.steps_taken    # 1 of a budget of 4
 state.evidence_ids   # ('hybrid-retrieval-1', 'hybrid-retrieval-2', ...)
 [c.marker for c in state.citations]     # [1, 2, 3, 4, 5]
+state.note_ids       # ('note-1', 'note-2', ...) — one claim per new passage
 [e.event for e in state.trace]
-# ['plan_created', 'tool_call', 'tool_result', 'critique',
-#  'tool_call', 'tool_result', 'synthesize', 'stop']
+# ['plan_created', 'tool_call', 'tool_result',
+#  'note_added', 'note_added', 'note_added', 'note_added', 'note_added',
+#  'critique', 'tool_call', 'tool_result', 'synthesize', 'stop']
 ```
 
-The second call is `search_notes`: when several passages are already sufficient, the
-critic may ask a deterministic in-process tool to rank those gathered notes before
+A `Note` is `{id, claim, source, citation}`: the claim is the retrieved chunk verbatim,
+and `citation` is the chunk id backing it. The stop rule scores grounded, on-topic notes
+plus the question terms they cover — never note count alone
+([ADR-0004](docs/adr/0004-notes-are-a-store.md)).
+
+The second call is `search_notes`: when several notes are already sufficient, the
+critic may ask a deterministic in-process tool to rank the run's own store before
 synthesis. It cannot retrieve, generate, or contact a provider, and it only runs when
 retrieval capacity remains.
 
@@ -213,7 +217,9 @@ that correlates the page with the server log.
 **The trace, expanded.** A two-hop question whose first sub-question retrieves nothing.
 The timeline shows `plan_created`, both `tool_call`/`tool_result` pairs, the `critique`
 arithmetic that decided to continue, `synthesize`, and the `stop` event carrying the
-status, the reason, and the budget.
+status, the reason, and the budget. A run today also emits one `note_added` per claim it
+commits to; this capture was taken before those events existed and is re-taken with the
+next UI change rather than described as if it showed them.
 
 ![The expanded trace timeline of a two-hop run, showing plan creation, two retrieval steps, critique, synthesis, and the terminal stop event](docs/assets/ui-trace.png)
 

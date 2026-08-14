@@ -73,16 +73,46 @@ class CaseResult(BaseModel):
 
 
 class EvalMetrics(BaseModel):
-    """Aggregate free-path behavior across the golden dataset."""
+    """Aggregate free-path *control* metrics across the golden dataset.
+
+    These numbers measure terminal behavior, budgets, and citation presence on a
+    committed fixture. They do not measure answer quality, retrieval quality, or
+    uplift over a single pass — and they never claim to beat another system.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     total_cases: int = Field(ge=0)
     passed_cases: int = Field(ge=0)
     pass_rate: float = Field(ge=0.0, le=1.0)
-    mean_steps_used: float = Field(ge=0.0)
-    has_citations_rate: float = Field(ge=0.0, le=1.0)
-    status_counts: dict[str, int]
+    mean_steps_used: float = Field(ge=0.0, description="Mean retrieval steps spent per case.")
+    has_citations_rate: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Fraction of cases whose report carried at least one citation.",
+    )
+    citation_present_rate: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Alias of has_citations_rate for scorecard readers expecting this name.",
+    )
+    status_counts: dict[str, int] = Field(description="Terminal status distribution.")
+    stop_reason_counts: dict[str, int] = Field(
+        description="Stop-reason distribution from the closed set the loop emits.",
+    )
+    refused_unanswerable: int = Field(
+        ge=0,
+        description="Unanswerable-category cases that ended refused.",
+    )
+    unanswerable_cases: int = Field(
+        ge=0,
+        description="Cases labelled category=unanswerable in the golden set.",
+    )
+    refused_unanswerable_rate: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="refused_unanswerable / unanswerable_cases (1.0 when the slice is empty).",
+    )
 
 
 class EvalReport(BaseModel):

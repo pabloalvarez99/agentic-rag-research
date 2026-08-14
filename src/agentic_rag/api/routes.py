@@ -25,10 +25,11 @@ from typing import Annotated, Any, Final
 from fastapi import APIRouter, Depends, Request, Response
 
 from agentic_rag.agent.state import TraceEvent
-from agentic_rag.api.errors import ErrorResponse
+from agentic_rag.api.errors import ErrorResponse, RunNotFound
 from agentic_rag.api.handlers import correlation_id
 from agentic_rag.api.metrics import run_and_count
 from agentic_rag.api.request_id import REQUEST_ID_HEADER
+from agentic_rag.api.runs import RUNS_PATH, RunArtifact
 from agentic_rag.api.schemas import ResearchRequest, ResearchResponse
 from agentic_rag.api.service import ResearchService
 
@@ -41,6 +42,12 @@ TRACE_PATH: Final = "/v1/research/trace"
 A trace is only worth having in the UI if it can leave the UI, and it is only worth
 having in the API if a client can save it next to whatever it is being compared with.
 """
+
+RUN_PATH: Final = f"{RUNS_PATH}/{{run_id}}"
+"""One finished run, by the correlation id it was served under."""
+
+RUN_TRACE_PATH: Final = f"{RUN_PATH}/trace.json"
+"""The same run, projected to its trace and offered as a download."""
 
 CONTENT_DISPOSITION: Final = "content-disposition"
 """Header that turns the JSON body into a download rather than a rendered page."""
@@ -89,6 +96,20 @@ _ERROR_RESPONSES: Final[dict[int | str, dict[str, Any]]] = {
     },
 }
 """The failures a client has to be able to handle, named in the schema."""
+
+_RUN_RESPONSES: Final[dict[int | str, dict[str, Any]]] = {
+    HTTPStatus.NOT_FOUND: {
+        "model": ErrorResponse,
+        "description": (
+            "`not_found`: this process does not hold that run. The store is bounded, "
+            "in-memory and not shared between instances, so an id can be absent because "
+            "it never existed, because it was evicted, or because another instance "
+            "served it."
+        ),
+    },
+    HTTPStatus.INTERNAL_SERVER_ERROR: _ERROR_RESPONSES[HTTPStatus.INTERNAL_SERVER_ERROR],
+}
+"""What a fetch of a stored run can answer with besides the run."""
 
 
 def get_service(request: Request) -> ResearchService:
@@ -141,6 +162,106 @@ def research(
     request_id = correlation_id(request)
     response.headers[REQUEST_ID_HEADER] = request_id
     return run_and_count(request, service, payload, request_id=request_id)
+
+
+def stored_run(service: ResearchService, run_id: str) -> RunArtifact:
+    """Return the stored run, or raise the typed 404 that says why it is absent.
+
+    Args:
+        service: The application's research service.
+        run_id: Correlation id of the run.
+
+    Returns:
+        The artifact.
+
+    Raises:
+        RunNotFound: This process does not hold that run.
+    """
+    artifact = service.runs.get(run_id)
+    if artifact is None:
+        raise RunNotFound(
+            "no run with that id is held by this process; the run store is bounded, "
+            "in-memory and not shared between instances, so a run can be absent because "
+            "it was evicted or because another instance served it"
+        )
+    return artifact
+
+
+@router.get(
+    RUN_PATH,
+    response_model=RunArtifact,
+    responses=_RUN_RESPONSES,
+    summary="Fetch one finished run by its correlation id",
+    response_description=(
+        "The stored run: the question, the backend, how it ended, why it stopped, the "
+        "report, the citations, the notes it relied on, the steps it spent against its "
+        "budget, and the full trace."
+    ),
+)
+def get_run(
+    run_id: str,
+    request: Request,
+    response: Response,
+    service: Annotated[ResearchService, Depends(get_service)],
+) -> RunArtifact:
+    """Return one finished run.
+
+    The artifact is what makes a run reviewable after the response that produced it is
+    gone: an id can be pasted into an issue, and whoever opens it reads the same report,
+    the same citations and the same trace — not a re-run that is merely expected to
+    match.
+
+    ``stop_reason`` is a field here rather than something to dig out of the terminal
+    ``stop`` event. Everything else is exactly what the run recorded.
+
+    Args:
+        run_id: Correlation id of the run.
+        request: The incoming request, read for its correlation id.
+        response: The outgoing response, whose correlation header is set here.
+        service: The application's research service.
+
+    Returns:
+        The stored run.
+    """
+    response.headers[REQUEST_ID_HEADER] = correlation_id(request)
+    return stored_run(service, run_id)
+
+
+@router.get(
+    RUN_TRACE_PATH,
+    response_model=list[TraceEvent],
+    responses=_RUN_RESPONSES,
+    summary="Download the trace of one finished run",
+    response_description=(
+        "That run's trace, oldest event first and ending in 'stop', served as a JSON "
+        "attachment."
+    ),
+)
+def get_run_trace(
+    run_id: str,
+    request: Request,
+    response: Response,
+    service: Annotated[ResearchService, Depends(get_service)],
+) -> list[TraceEvent]:
+    """Serve one stored run's trace as a file.
+
+    This is the contract the result page's download button uses. The file is the run
+    that was performed, read from the store — not a second run of the same question that
+    is assumed to be identical. The distinction only shows up on the day it stops being
+    true, which is the day it matters.
+
+    Args:
+        run_id: Correlation id of the run.
+        request: The incoming request, read for its correlation id.
+        response: The outgoing response, whose correlation and download headers are set.
+        service: The application's research service.
+
+    Returns:
+        Every event of the run, oldest first.
+    """
+    response.headers[REQUEST_ID_HEADER] = correlation_id(request)
+    response.headers[CONTENT_DISPOSITION] = f'attachment; filename="{trace_filename(run_id)}"'
+    return list(stored_run(service, run_id).trace)
 
 
 @router.post(

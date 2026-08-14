@@ -31,9 +31,46 @@ THIN = "How does chunking work?"
 MARKER = re.compile(r"\[(\d+)\]")
 
 
+HEADING_STATED = "Why use citations in RAG?"
+"""A question whose subject the corpus states in headings and not in the prose beneath.
+
+It is here because a scoring change that read claims and ignored their headings turned
+this run into a refusal while it held three passages about citations — and every golden
+still passed, because none of them asks a question of this shape.
+"""
+
+
 @pytest.fixture
 def tool() -> RetrieveTool:
     return RetrieveTool(FakeRetrievalBackend())
+
+
+def test_heading_context_keeps_topic_words_that_live_above_the_prose(tool: RetrieveTool) -> None:
+    state = run_research(HEADING_STATED, tool=tool)
+
+    assert state.status is ResearchStatus.DONE
+    assert state.notes
+    assert any("citation" in " ".join(sorted(note.terms)) for note in state.notes)
+    assert any(event.event == "note_added" for event in state.trace)
+
+
+def test_trace_events_carry_stable_offsets_not_wall_clock(tool: RetrieveTool) -> None:
+    state = run_research(ANSWERABLE, tool=tool)
+
+    assert [event.offset for event in state.trace] == list(range(len(state.trace)))
+    dumped = [event.model_dump(mode="json") for event in state.trace]
+    assert all("timestamp" not in event and "ts" not in event for event in dumped)
+    assert all("offset" in event for event in dumped)
+
+
+def test_a_listener_sees_events_in_order_as_they_are_recorded(tool: RetrieveTool) -> None:
+    seen: list[str] = []
+
+    state = run_research(ANSWERABLE, tool=tool, listener=lambda event: seen.append(event.event))
+
+    assert seen == [event.event for event in state.trace]
+    assert seen[0] == "plan_created"
+    assert seen[-1] == "stop"
 
 
 def markers(report: str) -> list[int]:
@@ -187,25 +224,37 @@ def test_the_trace_records_every_stage_in_order(tool: RetrieveTool) -> None:
         "plan_created",
         "tool_call",
         "tool_result",
+        *["note_added"] * len(state.notes),
         "critique",
         "tool_call",
         "tool_result",
         "synthesize",
         "stop",
     ]
-    call, result, verdict = state.trace[1], state.trace[2], state.trace[3]
+    call, result = state.trace[1], state.trace[2]
     assert call.payload["tool"] == "retrieve"
     assert result.payload["backend"] == "fake"
     assert result.payload["evidence_ids"] == list(state.evidence_ids)
-    assert verdict.payload["score"] == verdict.payload["note_count"] + (
+
+    added = [event for event in state.trace if event.event == "note_added"]
+    assert [event.payload["id"] for event in added] == list(state.note_ids)
+    assert [event.payload["citation"] for event in added] == list(state.evidence_ids)
+    assert all(event.payload["grounded"] is True for event in added)
+
+    verdict = state.trace[3 + len(state.notes)]
+    assert verdict.event == "critique"
+    assert verdict.payload["score"] == verdict.payload["relevant_note_count"] + (
         verdict.payload["keyword_overlap"]
     )
+    assert verdict.payload["note_count"] == len(state.notes)
+    assert verdict.payload["grounded_note_count"] == len(state.grounded_notes)
     assert verdict.payload["sufficient"] is True
     assert verdict.payload["requested_tool"] == "search_notes"
-    notes_call, notes_result = state.trace[4], state.trace[5]
+    notes_call, notes_result = state.trace[4 + len(state.notes)], state.trace[5 + len(state.notes)]
     assert notes_call.payload["tool"] == "search_notes"
     assert notes_result.payload["backend"] == "in_process"
-    assert notes_result.payload["inspected"] == len(state.evidence)
+    assert notes_result.payload["inspected"] == len(state.notes)
+    assert notes_result.payload["note_ids"]
 
 
 def test_note_search_is_optional_and_stays_inside_the_step_budget(tool: RetrieveTool) -> None:

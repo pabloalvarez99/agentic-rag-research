@@ -32,13 +32,14 @@ from time import perf_counter
 from typing import Final, Protocol
 
 from agentic_rag.agent.graph import run_research
-from agentic_rag.agent.state import DEFAULT_MAX_STEPS, ResearchState
+from agentic_rag.agent.state import DEFAULT_MAX_STEPS, ResearchState, TraceListener
 from agentic_rag.api.errors import (
     BackendUnavailable,
     CapabilityMissing,
     RunNotReportable,
 )
 from agentic_rag.api.request_id import new_request_id
+from agentic_rag.api.runs import RunArtifact, RunStore
 from agentic_rag.api.schemas import ResearchRequest, ResearchResponse, RetrieverChoice
 from agentic_rag.tools.base import ToolError
 from agentic_rag.tools.retrieve import (
@@ -67,8 +68,14 @@ class ResearchRunner(Protocol):
         tool: RetrieveTool | None = None,
         max_steps: int = DEFAULT_MAX_STEPS,
         top_k: int = DEFAULT_TOP_K,
+        listener: TraceListener | None = None,
     ) -> ResearchState:
-        """Research ``question`` under a step budget and return the finished state."""
+        """Research ``question`` under a step budget and return the finished state.
+
+        ``listener``, when given, is called with each trace event as it is recorded.
+        A runner is free to call it only at the end: the stream contract is that events
+        arrive in order and that the last one is ``stop``, not that they arrive early.
+        """
 
 
 RetrieverFactory = Callable[[RetrieverChoice], RetrieveTool]
@@ -158,6 +165,7 @@ class ResearchService:
         *,
         runner: ResearchRunner | None = None,
         retriever_factory: RetrieverFactory | None = None,
+        run_store: RunStore | None = None,
     ) -> None:
         """Build the service over its collaborators.
 
@@ -165,19 +173,39 @@ class ResearchService:
             runner: What performs a run. Defaults to the agent loop.
             retriever_factory: What turns a backend choice into a tool. Defaults to
                 :func:`build_retriever`, the only code here that reads the environment.
+            run_store: Where finished runs are kept so they can be fetched again.
+                Defaults to a store of its own. It is the one piece of state this
+                service holds between calls, and it is deliberate: an artifact nobody
+                can fetch twice is not an artifact. It is keyed by correlation id, so
+                two concurrent requests write two entries rather than racing for one.
         """
         self._run_research: ResearchRunner = run_research if runner is None else runner
         self._build_retriever: RetrieverFactory = (
             build_retriever if retriever_factory is None else retriever_factory
         )
+        self._run_store = RunStore() if run_store is None else run_store
 
-    def run(self, request: ResearchRequest, *, request_id: str | None = None) -> ResearchResponse:
-        """Perform one run and render it.
+    @property
+    def runs(self) -> RunStore:
+        """Return the store of finished runs this service records into."""
+        return self._run_store
+
+    def run(
+        self,
+        request: ResearchRequest,
+        *,
+        request_id: str | None = None,
+        listener: TraceListener | None = None,
+    ) -> ResearchResponse:
+        """Perform one run, store it, and render it.
 
         Args:
             request: The validated request.
             request_id: Correlation id established by the caller. Omitted, one is minted,
                 so a run always carries an id whichever way it arrived.
+            listener: Called with each trace event as the run records it. This is what
+                the stream route watches a run with; every other caller passes nothing
+                and sees no difference.
 
         Returns:
             The finished run, correlated to ``request_id``.
@@ -197,6 +225,7 @@ class ResearchService:
                 tool=tool,
                 max_steps=request.max_steps,
                 top_k=request.top_k,
+                listener=listener,
             )
         except ToolError as error:
             # The tool's own message names the endpoint it called, which is configuration
@@ -213,6 +242,13 @@ class ResearchService:
             ) from error
 
         response = render_response(state, request_id=correlation)
+        self._run_store.put(
+            RunArtifact.from_state(
+                state,
+                request_id=correlation,
+                retriever=request.retriever.value,
+            )
+        )
         LOGGER.info(
             "research run finished status=%s steps_used=%d retriever=%s "
             "citations=%d duration_ms=%.1f request_id=%s",

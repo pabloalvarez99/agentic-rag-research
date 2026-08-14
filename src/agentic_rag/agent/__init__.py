@@ -31,6 +31,7 @@ from agentic_rag.agent.state import (
     TraceEventName,
 )
 from agentic_rag.agent.synthesizer import Citation, Synthesis, synthesize
+from agentic_rag.notes import Note, claim_from_text, note_from_passage, note_id
 
 __all__ = [
     "DEFAULT_MAX_STEPS",
@@ -41,6 +42,7 @@ __all__ = [
     "Citation",
     "Critique",
     "Gap",
+    "Note",
     "ResearchState",
     "ResearchStatus",
     "RunAlreadyFinished",
@@ -50,10 +52,13 @@ __all__ = [
     "Synthesis",
     "TraceEvent",
     "TraceEventName",
+    "claim_from_text",
     "critique",
     "critique_node",
     "decide_outcome",
     "finish_node",
+    "note_from_passage",
+    "note_id",
     "plan_node",
     "plan_question",
     "retrieve_node",
