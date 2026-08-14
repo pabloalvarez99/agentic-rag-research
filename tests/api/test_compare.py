@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-
-from typing import Any
 
 from agentic_rag.api.compare import COMPARE_PATH, CompareResponse, compare_runs
 from agentic_rag.api.request_id import REQUEST_ID_HEADER
