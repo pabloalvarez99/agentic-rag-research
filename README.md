@@ -35,8 +35,15 @@ server-rendered research UI are live ([docs/SHIP.md](docs/SHIP.md)). The optiona
 retriever can call a running production-rag instance, but the default path contacts
 nothing and reads no API key.
 
-**Open <http://127.0.0.1:8010/> for the free UI.** Submit a question and inspect the
-report, citations, terminal status, request id, steps used, and expandable trace timeline.
+**Try it without cloning: <https://pax-agentic-rag.vercel.app>.** Submit a question and
+inspect the report, citations, terminal status, request id, steps used, and expandable
+trace timeline. Locally the same page is <http://127.0.0.1:8010/>.
+
+The hosted copy runs the loop over the **fixture retriever** — a deterministic
+in-process backend over a small committed corpus. It demonstrates the agent's contract
+(planning, budget accounting, citation resolution, refusal, trace) and supports **no
+claim whatsoever about retrieval or answer quality**. It sets no `PRODUCTION_RAG_URL`,
+so `retriever: "http"` there fails with `capability_missing`, by design.
 
 | Capability | State | Evidence |
 | --- | --- | --- |
@@ -50,10 +57,11 @@ report, citations, terminal status, request id, steps used, and expandable trace
 | Deterministic eval runner and JSON scorecard | **LIVE** | terminal behavior, steps, citations, sources, and gaps |
 | Research UI and typed HTML failures | **LIVE** | `/`, `/ui/research`, UI tests, and CI smoke |
 | Local `search_notes` tool | **LIVE (optional)** | critic request, deterministic tool tests, trace events |
-| Tagged release | **LIVE** | [v0.1.0 notes](docs/releases/v0.1.0.md); no hosted demo claimed |
+| Tagged release | **LIVE** | [v0.1.0 notes](docs/releases/v0.1.0.md); written before the demo was hosted |
 | UI captures of the three outcomes | **LIVE** | [committed PNGs](#what-that-looks-like-before-you-run-it) rebuilt by `scripts/capture_ui.py` |
 | Trace export as JSON, from the API and the page | **LIVE** | `POST /v1/research/trace`; the result page's download button; export tests |
 | `GET /metrics` Prometheus exposition | **LIVE** | `process_up`, `requests_total`, `research_total`, `research_steps_used_total`; metrics tests |
+| Hosted free-path demo | **LIVE** | [pax-agentic-rag.vercel.app](https://pax-agentic-rag.vercel.app) — Vercel, fixture retriever, no `PRODUCTION_RAG_URL` |
 
 Start with the [architecture](docs/architecture.md), read the one-page
 [ship truth](docs/SHIP.md), or use the [case study](docs/CASESTUDY.md) as the

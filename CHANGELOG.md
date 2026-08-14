@@ -18,6 +18,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   method/route/status, `research_total` by terminal status, and
   `research_steps_used_total`. Counters are process-local, the route label is restricted
   to declared routes, and no question text or correlation id is ever a label.
+- A hosted copy of the free path at <https://pax-agentic-rag.vercel.app>, via a root
+  `main.py` ASGI shim, `vercel.json`, `requirements.txt`, and `.python-version`. The
+  deployment configures no `PRODUCTION_RAG_URL`, so it serves the fixture retriever only
+  and `retriever: "http"` returns `capability_missing` there.
 
 ## [0.1.0] - 2026-08-13
 

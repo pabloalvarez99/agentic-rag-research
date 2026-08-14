@@ -9,7 +9,23 @@ This is the short operational truth. The [README](../README.md) is the hiring-fa
 [architecture.md](architecture.md) explains trade-offs, and the
 [release notes](releases/v0.1.0.md) state the evidence boundary.
 
-## Try it free
+## Try it free, hosted
+
+<https://pax-agentic-rag.vercel.app> — the same page, deployed on Vercel with no
+configuration to supply. Submit a question and read the report, citations, terminal
+status, steps used, request id, and trace.
+
+The deployment sets **no `PRODUCTION_RAG_URL`**, so every hosted run uses the fixture
+retriever: a deterministic in-process backend over the committed Markdown corpus. It is a
+demonstration of the agent's contract — planning, budget accounting, citation resolution,
+refusal, trace — and is **not evidence about retrieval or answer quality**. Asking for
+`retriever: "http"` there returns `capability_missing` rather than silently falling back.
+
+Vercel runs it as a serverless function, so the first request after an idle period pays a
+cold start and the counters `GET /metrics` reports are per-instance and reset with it.
+They are useful as a shape check, not as a traffic record.
+
+## Try it free, locally
 
 Requires Python 3.12+. On macOS/Linux replace `.venv/Scripts` with `.venv/bin`.
 
@@ -74,6 +90,7 @@ The CLI remains a script-friendly path:
 | Committed UI captures | **LIVE** | three PNGs in `docs/assets`; `scripts/capture_ui.py`, byte-identical on re-run |
 | Trace export, API and browser | **LIVE** | `POST /v1/research/trace` and the result page's download button; the file is the same events as `trace` in the research response |
 | `GET /metrics` | **LIVE** | Prometheus text: `process_up`, `requests_total{method,path,status}`, `research_total{status}`, `research_steps_used_total` |
+| Hosted free-path demo | **LIVE** | <https://pax-agentic-rag.vercel.app>; `main.py` + `vercel.json`; fixture retriever only |
 
 ## What CI proves on the release commit
 
@@ -96,8 +113,11 @@ The CLI remains a script-friendly path:
 
 - Lexical fake retrieval measures control-flow conformance, not retrieval, reasoning, or
   answer quality. There is no paired agent-uplift claim against a hosted baseline.
-- No hosted demo, model-based planner, auth, rate limiting, streaming, multi-tenancy, load
-  figure, arbitrary web/write tool, or multi-agent orchestration is shipped.
+- The hosted demo is the free path and nothing more: fixture retrieval, no credential, no
+  production-rag instance behind it. It is not a production deployment and carries no
+  traffic.
+- No model-based planner, auth, rate limiting, streaming, multi-tenancy, load figure,
+  arbitrary web/write tool, or multi-agent orchestration is shipped.
 - The optional HTTP adapter is mock-transport tested; this release does not claim a live
   cross-service measurement.
 

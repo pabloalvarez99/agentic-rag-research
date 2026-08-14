@@ -43,6 +43,10 @@ coverage.xml
 .DS_Store
 Thumbs.db
 
+# --- Hosting ----------------------------------------------------------------
+# `vercel` writes the project link here; it is machine-local, not repository state.
+.vercel/
+
 # --- Local scratch ----------------------------------------------------------
 data/local/
 notebooks/scratch/
