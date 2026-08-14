@@ -64,20 +64,30 @@ jobs:
           page=$(curl --fail --silent http://127.0.0.1:8010/)
           PAGE="$page" python -c 'import os; page=os.environ["PAGE"]; assert "Demo mode (free / deterministic)" in page; assert "Research a question" in page'
           result=$(curl --fail --silent \
+            --header 'x-request-id: ci-ui-run' \
             --data-urlencode 'question=Why do bounded research agents need explicit stop reasons?' \
             --data 'max_steps=4' \
             http://127.0.0.1:8010/ui/research)
-          RESULT="$result" python -c 'import os; page=os.environ["RESULT"]; assert "Trace timeline" in page; assert "Request ID" in page; assert "Citations" in page; assert "Download trace (JSON)" in page'
-          trace=$(curl --fail --silent \
+          RESULT="$result" python -c 'import os; page=os.environ["RESULT"]; assert "Trace timeline" in page; assert "Request ID" in page; assert "Citations" in page; assert "Download stored trace (JSON)" in page; assert "/v1/runs/ci-ui-run/trace.json" in page'
+          # Stored artifact (Week 2 contract) — not a re-run of the same question.
+          stored=$(curl --fail --silent http://127.0.0.1:8010/v1/runs/ci-ui-run)
+          STORED="$stored" python -c 'import json, os; body=json.loads(os.environ["STORED"]); assert body["request_id"] == "ci-ui-run"; assert body["status"] in {"done","refused","budget_exhausted"}; assert body["trace"][-1]["event"] == "stop"; assert "offset" in body["trace"][0]'
+          trace=$(curl --fail --silent http://127.0.0.1:8010/v1/runs/ci-ui-run/trace.json)
+          TRACE="$trace" python -c 'import json, os; events=json.loads(os.environ["TRACE"]); assert events[0]["event"] == "plan_created", events[0]; assert events[-1]["event"] == "stop", events[-1]'
+          # Legacy form download still works for no-JS clients.
+          legacy=$(curl --fail --silent \
             --data-urlencode 'question=Why do bounded research agents need explicit stop reasons?' \
             --data 'max_steps=4' \
             http://127.0.0.1:8010/ui/trace.json)
-          TRACE="$trace" python -c 'import json, os; events=json.loads(os.environ["TRACE"]); assert events[0]["event"] == "plan_created", events[0]; assert events[-1]["event"] == "stop", events[-1]'
+          LEGACY="$legacy" python -c 'import json, os; events=json.loads(os.environ["LEGACY"]); assert events[-1]["event"] == "stop", events[-1]'
           exported=$(curl --fail --silent \
             --header 'content-type: application/json' \
             --data '{"question":"Why use reciprocal rank fusion?","retriever":"fake"}' \
             http://127.0.0.1:8010/v1/research/trace)
           EXPORTED="$exported" python -c 'import json, os; events=json.loads(os.environ["EXPORTED"]); assert events[-1]["event"] == "stop", events[-1]'
+          stream=$(curl --fail --silent \
+            "http://127.0.0.1:8010/v1/research/stream?question=Why%20use%20citations%20in%20RAG%3F&max_steps=4&retriever=fake")
+          STREAM="$stream" python -c 'import os; text=os.environ["STREAM"]; assert "event: trace" in text; assert "event: done" in text; assert "plan_created" in text'
           scrape=$(curl --fail --silent http://127.0.0.1:8010/metrics)
           SCRAPE="$scrape" python -c 'import os; text=os.environ["SCRAPE"]; assert "process_up 1" in text, text; assert "research_total{status=\"done\"}" in text, text; assert "research_steps_used_total" in text, text'
 
