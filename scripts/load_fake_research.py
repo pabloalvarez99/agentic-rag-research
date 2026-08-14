@@ -29,6 +29,7 @@ QUESTIONS = [
 
 
 def percentile(sorted_values: list[float], p: float) -> float:
+    """Return the linear-interpolated percentile ``p`` of sorted latencies."""
     if not sorted_values:
         return 0.0
     if len(sorted_values) == 1:
@@ -42,6 +43,7 @@ def percentile(sorted_values: list[float], p: float) -> float:
 
 
 def main() -> int:
+    """CLI entry: run N researches and write the load JSON artifact."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--n", type=int, default=50)
     parser.add_argument(
