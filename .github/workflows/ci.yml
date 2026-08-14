@@ -13,6 +13,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  OPENAI_API_KEY: ""
+  COHERE_API_KEY: ""
+  PRODUCTION_RAG_URL: ""
+
 jobs:
   quality:
     runs-on: ubuntu-latest
@@ -39,12 +44,8 @@ jobs:
         run: pytest -q
         # Prove the credential-free path: if the code silently starts requiring a key,
         # CI goes red rather than passing on a secret this workflow never sets.
-        env:
-          OPENAI_API_KEY: ""
 
       - name: Prove the credential-free HTTP path
-        env:
-          OPENAI_API_KEY: ""
         run: |
           python -m uvicorn agentic_rag.main:app --host 127.0.0.1 --port 8010 > api.log 2>&1 &
           api_pid=$!
