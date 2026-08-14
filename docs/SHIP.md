@@ -4,6 +4,7 @@
 deterministic fake retriever, FastAPI route, CLI, request ids, citations, refusal, and full
 trace are runnable from a clean clone. The synchronized 17-case golden dataset and
 deterministic JSON evaluation scorecard are also merged and runnable on the free path.
+The [v0.1.0 release notes](releases/v0.1.0.md) are a draft, not a tag or publication claim.
 
 This page is the short operational truth. The [README](../README.md) is the hiring-facing
 tour, and [architecture.md](architecture.md) explains the trade-offs.

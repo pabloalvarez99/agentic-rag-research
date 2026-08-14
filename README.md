@@ -36,7 +36,7 @@ key, and the default path contacts nothing.
 | production-rag HTTP adapter | **LIVE (opt-in)** | mock HTTP transport; no live-service result claimed |
 | 17-case golden dataset | **LIVE** | five behavior slices; [schema and coverage](data/eval/README.md) |
 | Deterministic eval runner and JSON scorecard | **LIVE** | terminal behavior, steps, citations, sources, and gaps |
-| Tagged release / hosted demo | **PLANNED (M6)** | not claimed |
+| Tagged release / hosted demo | **PLANNED (M6)** | [v0.1.0 notes are draft only](docs/releases/v0.1.0.md) |
 
 Start with the [architecture](docs/architecture.md), read the one-page
 [ship truth](docs/SHIP.md), or use the [case study](docs/CASESTUDY.md) as the
@@ -215,6 +215,8 @@ will not publish a quality number produced by it.
 | `docs/architecture.md` | Implemented loop, tool boundaries, retrieval seam, budgets, failures, and milestones. |
 | `docs/adr/` | Three accepted decision records with alternatives and consequences. |
 | `docs/SHIP.md` | One-page LIVE/PLANNED truth, release gate, and failure demos. |
+| `CHANGELOG.md` | M1–M5 history and the explicit no-tag release boundary. |
+| `docs/releases/v0.1.0.md` | Draft release notes; not evidence that a release exists. |
 | `docs/PORTFOLIO.md` | P1 → P5 series narrative and ownership boundary. |
 | `.env.example` | Variable names for opt-in paths. Never values. |
 

@@ -461,7 +461,7 @@ These names follow the portfolio plan rather than the older internal M0–M7 dra
 | M3 | `POST /v1/research`, CLI parity, request ids, typed transport errors | **LIVE** |
 | M4 | Optional production-rag HTTP retriever | **IMPLEMENTED / opt-in**; mock-transport tested, no live-service result claimed |
 | M5 | Golden runner and deterministic JSON behavioral scorecard | **LIVE**; 17 synchronized cases over five slices |
-| M6 | Release polish and public evidence | **PLANNED**; docs exist, release/tag/demo artifacts do not |
+| M6 | Release polish and public evidence | **PLANNED**; [release notes](releases/v0.1.0.md) are draft, and no tag or hosted demo is claimed |
 
 M1 through M3 need no credential and no running retrieval service. M4 preserves that
 default: HTTP is selected explicitly, and a missing configuration fails with
