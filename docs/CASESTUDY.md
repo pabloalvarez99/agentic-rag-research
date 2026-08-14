@@ -1,5 +1,13 @@
 # Case study — proving an agent loop before paying for one
 
+<p align="center">
+  <a href="https://github.com/pabloalvarez99/production-rag"><img src="https://img.shields.io/badge/P1-production--rag-0ea5e9" alt="P1 production-rag" /></a>
+  <a href="https://github.com/pabloalvarez99/agentic-rag-research"><img src="https://img.shields.io/badge/P2-agentic--rag-a78bfa" alt="P2 agentic-rag" /></a>
+  <a href="https://github.com/pabloalvarez99/multi-agent-orchestration"><img src="https://img.shields.io/badge/P3-multi--agent-22c55e" alt="P3 multi-agent" /></a>
+  <a href="https://github.com/pabloalvarez99/repomind"><img src="https://img.shields.io/badge/P4-repomind-f59e0b" alt="P4 repomind" /></a>
+  <a href="https://github.com/pabloalvarez99/ai-platform"><img src="https://img.shields.io/badge/P5-ai--platform-6b7280" alt="P5 ai-platform" /></a>
+</p>
+
 ## Problem
 
 A single RAG pass can retrieve and answer, but a research question may contain several
@@ -57,6 +65,34 @@ steps, citations, source diversity, and gaps against curated fixture expectation
 claim still requires an HTTP-backed run on a real corpus, a one-pass answer baseline, named
 providers, paired results, sample size, and uncertainty. The defensible result is: **the
 mechanism is runnable, bounded, inspectable, and its evaluation contract is executable.**
+
+## What the UI proves
+
+The argument above is about mechanism, and mechanism is invisible in a JSON blob nobody
+runs. Three committed captures, rebuilt from a live server by
+[`scripts/capture_ui.py`](../scripts/capture_ui.py), show it:
+
+- [`ui-done.png`](assets/ui-done.png) — a run that finished. The status, the retrieval
+  steps it spent, and every citation marker resolving to a passage that was retrieved.
+  The claim "no marker without a passage" is a thing you can read off the page.
+- [`ui-trace.png`](assets/ui-trace.png) — the same UI with the trace expanded, on a
+  two-hop question whose first sub-question retrieves nothing. `plan_created`, both
+  retrieval steps, the `critique` arithmetic that chose to continue, `synthesize`, and
+  the terminal `stop`. The plan, not a retry, is what reached the evidence.
+- [`ui-budget.png`](assets/ui-budget.png) — the budget ending a run. Status
+  `budget_exhausted` with reason `budget_spent`, a partial grounded report, and the terms
+  no retrieved passage covered. The step budget lives in the run state, so the ceiling is
+  visible in the trace instead of being an implicit property of the loop's condition.
+
+They also re-state the boundary rather than blurring it: the captures are produced on the
+deterministic fake retriever with `PRODUCTION_RAG_URL` cleared, the form pins
+`retriever=fake`, and the optional P1 HTTP path stays opt-in and fail-closed. They are
+evidence of contract, budget, and traceability — **not** of retrieval or answer quality.
+
+Reproducibility is part of the point: the viewport and questions are pinned and the
+correlation id is supplied per capture, so a rebuild is byte-identical and
+`python scripts/capture_ui.py --verify` fails on drift rather than quietly publishing a
+different run.
 
 ## What I would test next
 
