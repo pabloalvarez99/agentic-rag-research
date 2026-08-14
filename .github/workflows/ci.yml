@@ -45,6 +45,9 @@ jobs:
         # Prove the credential-free path: if the code silently starts requiring a key,
         # CI goes red rather than passing on a secret this workflow never sets.
 
+      - name: Prove the credential-free research demo
+        run: bash scripts/demo_research.sh
+
       - name: Prove the credential-free HTTP path
         run: |
           python -m uvicorn agentic_rag.main:app --host 127.0.0.1 --port 8010 > api.log 2>&1 &
