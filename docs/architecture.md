@@ -72,6 +72,10 @@ Three properties of that shape are deliberate:
 | `retrieve` | Run one sub-question against the retrieval service and return passages with their source ids. | It does not rank by what would make the answer nicer; ranking belongs to the retrieval service. |
 | `critique` | Decide whether the evidence supports an answer, name the gap when it does not, and stop when the budget is spent. | It never fills a gap by inventing a passage. Insufficient evidence ends in a refusal, not a hedge. |
 
+The full surface, what is deliberately absent from it, and why the retrieval
+service sits behind a *second* protocol rather than inside the tool, are recorded
+in [ADR-0003](adr/0003-tool-boundary.md).
+
 Two rules apply to all three, and they are what make the loop testable rather
 than merely describable:
 
@@ -127,7 +131,9 @@ labelled set exists yet.
 
 The `insufficient_evidence` refusal exists so the status field cannot lie: a run
 that stopped with steps to spare must not report `budget_exhausted`, which is the
-first field an operator would check when asking why a run was thin.
+first field an operator would check when asking why a run was thin. The same four
+outcomes as a function of the three facts that decide them, alongside the typed
+failures that are *not* outcomes, are in [Failure modes](#failure-modes).
 
 ### Two independent bounds
 
@@ -142,6 +148,22 @@ Termination does not depend on the critic being right:
    shrinks. Without that rule, a gap no retrieval can close would be re-issued
    until the budget ran out, and every thin run would report `budget_exhausted`
    whatever actually stopped it.
+
+Two budgets, bounding two different costs:
+
+| Budget | Bounds | Default | Enforced by |
+| --- | --- | --- | --- |
+| `max_steps` | Retrieval calls one run may make. | 4 | `ResearchState.record_retrieval`, which raises `StepBudgetExceeded` rather than dropping the step. |
+| `top_k` | Passages one retrieval call may return — the context a single step drags back. | 5 | The `retrieve` tool, applied to what the backend returned. |
+
+There is deliberately **no wall-clock and no spend budget** at this milestone.
+`max_steps` bounds the only cost the free path has: the fake backend contacts
+nothing and bills nothing, so a timeout would be dead code and a spend ceiling a
+field that always reads zero. Both are the right bounds the moment the HTTP
+backend runs against a real instance, and they land there, with the failure they
+exist to survive in front of them. The reasoning, the outcome table below, and
+the alternatives rejected on the way are in
+[ADR-0002](adr/0002-step-budget.md).
 
 ### The trace
 
@@ -303,6 +325,83 @@ from P1's reporting boundary:
   agent that spends five steps and wins nothing has to be publishable as exactly
   that.
 
+## Failure modes
+
+A demo shows the happy path. What a reviewer can actually check is whether the
+failures are named, typed, and reachable — so each one below says what produces
+it, what the caller sees, and whether it exists today.
+
+```mermaid
+stateDiagram-v2
+    [*] --> running
+    running --> done: evidence_sufficient
+    running --> refused: no_evidence
+    running --> refused: insufficient_evidence
+    running --> budget_exhausted: budget_spent
+    running --> degraded: declared, not yet produced
+    done --> [*]
+    refused --> [*]
+    budget_exhausted --> [*]
+    degraded --> [*]
+```
+
+### How a run ends, as a function of three facts
+
+`decide_outcome(sufficient, has_evidence, budget_spent)` in `agent/graph.py` is a
+pure function, so the policy is one table rather than a sequence of branches
+inside a loop body:
+
+| `sufficient` | `has_evidence` | `budget_spent` | Status | Stop reason |
+| --- | --- | --- | --- | --- |
+| yes | — | — | `done` | `evidence_sufficient` |
+| no | no | — | `refused` | `no_evidence` |
+| no | yes | yes | `budget_exhausted` | `budget_spent` |
+| no | yes | no | `refused` | `insufficient_evidence` |
+
+Sufficient evidence answers whatever the budget did: a run that reached its last
+step and *then* found what it needed has succeeded, and reporting the budget
+would be an apology for a correct run.
+
+### Typed failures
+
+| Failure | What produces it | What the caller sees | Today |
+| --- | --- | --- | --- |
+| `no_evidence` | Every sub-question retrieved for came back empty. | `refused`, with the named gaps and no citations. | **Live**, and reachable from the free path. |
+| `insufficient_evidence` | Evidence exists but scores below the threshold, and no follow-up remains that has not already been retrieved for. | `refused`, with the gathered passages still cited. | **Live.** |
+| `budget_spent` | Evidence exists, never became sufficient, and the step budget ran out. | `budget_exhausted`, with the grounded findings **and** the gaps it never closed. | **Live.** |
+| `ToolError` | The retrieval backend was unreachable, answered with an error status, or sent a body the client cannot read. Only the HTTP backend can raise it. | Propagates out of `run_research`. **The loop does not catch it yet.** | Raised by the HTTP backend; unhandled by the loop. |
+| `StepBudgetExceeded` | A step was recorded past the budget — a defect in a caller, not a runtime condition. | Raised at the line that overspent. | **Live**, and unreachable through `run_research`. |
+| `RunAlreadyFinished` | A finished run was asked to record more work. Same class of defect. | Raised. | **Live**, unreachable through `run_research`. |
+| `degraded` | Reserved for a run that finished *around* a tool failure. | — | **Declared and unused.** |
+
+The two unhandled rows are the honest state, not an oversight. `degraded` is the
+status a caught `ToolError` would produce, and writing that handler now would mean
+guessing at the failure it has to survive: no free-path tool can fail this way, so
+the handling would be tested against an invented exception rather than a real one.
+It lands with the first run against a live production-rag instance. Until then a
+transport failure surfaces as an exception rather than as a quietly empty run,
+which is the safer of the two wrong answers — an empty result would be
+indistinguishable from a correct refusal.
+
+### What the free path cannot fail at
+
+Worth stating, because it bounds what a green suite means. On the default path
+there is no network, no credential, no clock in the trace and no non-determinism,
+so there is nothing to time out, nothing to rate-limit, nothing to expire and
+nothing to flake. A test that fails here is a real defect — which is the property
+that makes the suite worth running — but the suite is silent about every failure
+that needs a real service to occur.
+
+### Untrusted input
+
+Retrieved text is input this process did not write. The tool boundary is what
+bounds the damage: the loop can score a passage, cite it, or ignore it, and there
+is no shell, no filesystem, no arbitrary HTTP and no write path for it to reach
+([ADR-0003](adr/0003-tool-boundary.md)). That is a containment argument, not a
+detection one — nothing here inspects a passage for instructions, and nothing
+needs to while no model reads them. A model in the synthesiser changes that, and
+the mitigation lands with it rather than being claimed now.
+
 ## Provider stance
 
 The default providers are deterministic fakes, chosen so a run is repeatable and
@@ -311,6 +410,18 @@ reads a key to serve the scaffold. `.env.example` lists the variable names a
 future paid path would use; it carries no values. The reasoning, its rejected
 alternatives, and the conditions under which the paid path opens are in
 [ADR-0001](adr/0001-fake-first.md).
+
+## Decision records
+
+Three decisions here were not obvious, each had a defensible alternative, and each
+would be expensive to reverse once a call site depends on it. They are recorded with
+the alternatives that were rejected and why:
+
+| ADR | Decides | Status |
+| --- | --- | --- |
+| [ADR-0001](adr/0001-fake-first.md) | The free path is the default; the paid path is opt-in and later. What the fake is allowed to prove, and what it is not. | accepted |
+| [ADR-0002](adr/0002-step-budget.md) | The step budget lives in the state; two independent bounds end every run; the stop reason comes from a closed set. | accepted |
+| [ADR-0003](adr/0003-tool-boundary.md) | One read-only tool, behind a protocol, with the retrieval service one seam further out. What is deliberately not a tool. | accepted |
 
 ## Milestones
 
@@ -323,7 +434,7 @@ alternatives, and the conditions under which the paid path opens are in
 | M4 | Trace of the loop: every step, its tool, its evidence, how it ended | **LIVE** |
 | M5 | `POST /v1/research` and a CLI over `run_research()` | planned |
 | M6 | HTTP backend against a running production-rag instance | client written at M1, never yet run against a real instance |
-| M7 | Offline evaluation of the loop against a fixed question set, paired against the single pass | planned |
+| M7 | Offline evaluation of the loop against a fixed question set, paired against the single pass | question set committed at [`data/eval/golden_research.jsonl`](../data/eval/golden_research.jsonl); the harness that runs it is planned |
 
 M2 through M4 landed together, because a plan with no critic has no stop rule and
 a stop rule with no trace cannot be audited — shipping them apart would have

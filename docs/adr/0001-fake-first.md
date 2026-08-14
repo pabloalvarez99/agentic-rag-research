@@ -4,6 +4,15 @@
 - **Date:** 2026-08-13
 - **Scope:** provider defaults, the retrieval boundary, and the milestone order
 
+> **Amendment, 2026-08-13.** The milestone numbers below were written before M2
+> through M4 landed together and the numbering shifted. Where this record says the
+> paid path opens at M5, the current
+> [architecture.md](../architecture.md#milestones) numbers it **M6** — the HTTP
+> backend against a running production-rag instance; M5 is the HTTP route and CLI
+> over the loop, and still needs no credential. The decision is unchanged: the loop
+> is complete and measurable on the free path before anything is billed. Only the
+> label moved.
+
 ## Context
 
 This project is a bounded `plan → retrieve → critique` loop over a retrieval
