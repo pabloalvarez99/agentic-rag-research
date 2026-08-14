@@ -4,6 +4,12 @@
 - **Date:** 2026-08-13
 - **Scope:** provider defaults, the retrieval boundary, and the milestone order
 
+> **Amendment, 2026-08-13.** Milestone names now follow the canonical portfolio
+> plan: M3 is API/CLI, M4 is the optional production-rag HTTP adapter, M5 is evals,
+> and M6 is release polish. HTTP does not itself mean paid — P1 also has a fake-provider
+> path. The decision is unchanged: deterministic mechanism comes before any hosted,
+> billed quality run.
+
 ## Context
 
 This project is a bounded `plan → retrieve → critique` loop over a retrieval
@@ -51,9 +57,10 @@ Concretely:
    predecessor project: if a change makes any default path require a credential,
    CI goes red instead of a reviewer discovering it after cloning.
 5. **The paid path lands after the loop is complete on the free path** — the
-   milestone order in [architecture.md](../architecture.md), where M1 through M4
-   (retrieve, plan, budget, critique, stop rule, trace) need no credential and no
-   running service, and only M5 introduces HTTP to a real instance.
+   milestone order in [architecture.md](../architecture.md), where M1 through M3
+   (retrieve, loop, budget, trace, API and CLI) need no credential or running service.
+   M4 introduces opt-in HTTP while preserving fake defaults; hosted providers remain
+   outside the default path.
 6. **Every billed run is explicit at the call site and labelled in its output.**
    A number produced by a hosted provider is published with its providers, its
    sample size, its date and its commit; a number produced by fakes is labelled
@@ -92,8 +99,8 @@ schedules. The predecessor project demonstrated the opposite order works.
 
 **Record and replay hosted responses (a cassette library).** Real model output,
 replayed for free, no key needed after the first recording. Rejected as the
-default, though it remains attractive for M6. Cassettes are recorded against a
-prompt; the loop's prompts change on almost every commit during M1–M4, so the
+default, though it remains attractive for a later hosted-provider evaluation. Cassettes are recorded against a
+prompt; the loop's prompts change during early milestones, so the
 recordings would be stale continuously and a stale cassette fails in a way that
 looks like a code bug. It also requires a key to record, which puts a credential
 back on the contribution path. Revisit when the prompts stabilise.
@@ -108,10 +115,10 @@ for the fake as much as for the service.
 **No fake retrieval; run the real service in Docker for everything.** The
 predecessor ships a Compose stack, so this is not unreasonable, and it tests
 against real retrieval behaviour. Rejected as the default for the loop's own
-tests: it makes the unit suite depend on a container, which turns a 2-second test
-run into a 40-second one and a laptop into a prerequisite. It stays the right
-answer for M5 and M6, where retrieval behaviour is the subject rather than the
-substrate.
+tests: it makes the unit suite depend on a container, which turns a fast test
+run into an integration run and Docker into a prerequisite. It stays the right
+answer for opt-in M4 integration and M5 evaluation, where retrieval behaviour is
+the subject rather than the substrate.
 
 ## Consequences
 
@@ -121,7 +128,7 @@ mean the loop's *reasoning* quality is unmeasured until the paid path opens — 
 free path validates mechanism, not judgement, and this record says so rather than
 letting a green suite imply otherwise. Some real failure modes (a model ignoring
 the plan format, a critique that rationalises thin evidence) will not appear
-until M5.
+until a hosted-provider path is exercised.
 
 **Bought properties.** A reviewer runs the whole loop from a clone. The test
 suite is offline, fast, and deterministic, so a flaky run is a real bug. Cost
