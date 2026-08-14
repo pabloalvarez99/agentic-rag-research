@@ -8,10 +8,12 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
+from typing import Any
+
 from agentic_rag.api.compare import COMPARE_PATH, CompareResponse, compare_runs
 from agentic_rag.api.request_id import REQUEST_ID_HEADER
-from agentic_rag.api.routes import RESEARCH_PATH, RUNS_PATH
-from agentic_rag.api.runs import RunArtifact
+from agentic_rag.api.routes import RESEARCH_PATH
+from agentic_rag.api.runs import RUNS_PATH, RunArtifact
 from agentic_rag.api.service import ResearchService
 from agentic_rag.main import create_app
 
@@ -25,7 +27,7 @@ def client(offline_service: ResearchService) -> Iterator[TestClient]:
         yield running
 
 
-def _artifact(client: TestClient, *, question: str, request_id: str) -> dict:
+def _artifact(client: TestClient, *, question: str, request_id: str) -> dict[str, Any]:
     run = client.post(
         RESEARCH_PATH,
         json={"question": question, "max_steps": 4},
@@ -34,7 +36,8 @@ def _artifact(client: TestClient, *, question: str, request_id: str) -> dict:
     assert run.status_code == 200
     stored = client.get(f"{RUNS_PATH}/{request_id}")
     assert stored.status_code == 200
-    return stored.json()
+    body: dict[str, Any] = stored.json()
+    return body
 
 
 def test_identical_fixtures_yield_an_empty_byte_stable_diff() -> None:
