@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from enum import StrEnum
-from typing import Any, Final, Literal, TypeAlias
+from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
@@ -78,7 +78,7 @@ TraceEventName = Literal[
 """The events a run may record, in the order a complete run emits them."""
 
 
-TraceListener: TypeAlias = Callable[["TraceEvent"], None]
+type TraceListener = Callable[["TraceEvent"], None]
 """Called with each event as a run records it. See :meth:`ResearchState.subscribe`."""
 
 
