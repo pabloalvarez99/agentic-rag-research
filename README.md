@@ -86,13 +86,20 @@ state.stop_reason    # 'evidence_sufficient'
 state.steps_taken    # 1 of a budget of 4
 state.evidence_ids   # ('hybrid-retrieval-1', 'hybrid-retrieval-2', ...)
 [c.marker for c in state.citations]     # [1, 2, 3, 4, 5]
+state.note_ids       # ('note-1', 'note-2', ...) — one claim per new passage
 [e.event for e in state.trace]
-# ['plan_created', 'tool_call', 'tool_result', 'critique',
-#  'tool_call', 'tool_result', 'synthesize', 'stop']
+# ['plan_created', 'tool_call', 'tool_result',
+#  'note_added', 'note_added', 'note_added', 'note_added', 'note_added',
+#  'critique', 'tool_call', 'tool_result', 'synthesize', 'stop']
 ```
 
-The second call is `search_notes`: when several passages are already sufficient, the
-critic may ask a deterministic in-process tool to rank those gathered notes before
+A `Note` is `{id, claim, source, citation}`: the claim is the retrieved chunk verbatim,
+and `citation` is the chunk id backing it. The stop rule scores grounded, on-topic notes
+plus the question terms they cover — never note count alone
+([ADR-0004](docs/adr/0004-notes-are-a-store.md)).
+
+The second call is `search_notes`: when several notes are already sufficient, the
+critic may ask a deterministic in-process tool to rank the run's own store before
 synthesis. It cannot retrieve, generate, or contact a provider, and it only runs when
 retrieval capacity remains.
 
@@ -213,7 +220,9 @@ that correlates the page with the server log.
 **The trace, expanded.** A two-hop question whose first sub-question retrieves nothing.
 The timeline shows `plan_created`, both `tool_call`/`tool_result` pairs, the `critique`
 arithmetic that decided to continue, `synthesize`, and the `stop` event carrying the
-status, the reason, and the budget.
+status, the reason, and the budget. A run today also emits one `note_added` per claim it
+commits to; this capture was taken before those events existed and is re-taken with the
+next UI change rather than described as if it showed them.
 
 ![The expanded trace timeline of a two-hop run, showing plan creation, two retrieval steps, critique, synthesis, and the terminal stop event](docs/assets/ui-trace.png)
 

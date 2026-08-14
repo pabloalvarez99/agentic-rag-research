@@ -114,7 +114,8 @@ run.
 | Component | Rule | Where |
 | --- | --- | --- |
 | `plan_question` | Question under 80 characters is one sub-question; otherwise split on `and` / `then` / `?`, drop fragments carrying no scoring term, drop repeats, cap at 3. | `agent/planner.py` |
-| `critique` | `score = distinct passages + question terms they cover`; sufficient at `score >= 3` with at least one passage; otherwise name gaps. | `agent/critic.py` |
+| `critique` | `score = question terms covered by grounded claims + grounded, on-topic notes`; sufficient at `score >= 3` with at least one such note; otherwise name gaps. | `agent/critic.py` |
+| `Note` | One claim the run relies on: `id`, `claim` (the chunk verbatim), `source`, optional `citation`. Written per new passage, traced as `note_added`. | `notes.py` |
 | `synthesize` | One bullet per passage, marked `[n]` in the order evidence was first seen. No paraphrase, no model. | `agent/synthesizer.py` |
 | `decide_outcome` | Pure function of three booleans: sufficient, has evidence, budget spent. | `agent/graph.py` |
 
@@ -170,10 +171,12 @@ the alternatives rejected on the way are in
 
 ### The trace
 
-Six event kinds, in the order a complete run emits them: `plan_created`,
-`tool_call`, `tool_result`, `critique`, `synthesize`, `stop`. Every run ends with
-`stop`, including a refusal — the run that refused is the one most worth reading
-later.
+Seven event kinds, in the order a complete run emits them: `plan_created`,
+`tool_call`, `tool_result`, `note_added`, `critique`, `synthesize`, `stop`. One
+`note_added` is emitted per claim the run commits to, carrying the note's id, its
+source and the chunk id backing it ([ADR-0004](adr/0004-notes-are-a-store.md)).
+Every run ends with `stop`, including a refusal — the run that refused is the one
+most worth reading later.
 
 The trace carries **no timestamps**. A free-path run is deterministic, so two
 runs of the same question produce byte-identical traces and a test can assert on
@@ -450,6 +453,7 @@ the alternatives that were rejected and why:
 | [ADR-0001](adr/0001-fake-first.md) | The free path is the default; the paid path is opt-in and later. What the fake is allowed to prove, and what it is not. | accepted |
 | [ADR-0002](adr/0002-step-budget.md) | The step budget lives in the state; two independent bounds end every run; the stop reason comes from a closed set. | accepted |
 | [ADR-0003](adr/0003-tool-boundary.md) | One read-only tool, behind a protocol, with the retrieval service one seam further out. What is deliberately not a tool. | accepted |
+| [ADR-0004](adr/0004-notes-are-a-store.md) | Notes are a typed store the stop rule scores; the free-path critic contains no model call, and why. | accepted |
 
 ## Milestones
 

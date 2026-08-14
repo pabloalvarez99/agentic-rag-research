@@ -96,17 +96,27 @@ def plan_node(state: ResearchState) -> None:
 
 
 def retrieve_node(state: ResearchState, tool: RetrieveTool, sub_question: str, top_k: int) -> None:
-    """Spend one step retrieving for ``sub_question`` and absorb what comes back."""
+    """Spend one step retrieving for ``sub_question``, absorb it, and note what it says.
+
+    Writing the notes here rather than inside the state's retrieval bookkeeping keeps
+    the two facts separate: the step spent a budget unit and returned these chunk ids,
+    and the run then decided which claims it is relying on. A backend that returns a
+    passage the run cannot take a claim from spends the step either way, and the trace
+    shows both halves.
+    """
     request = RetrieveRequest(question=sub_question, top_k=top_k)
     state.record_tool_call(tool.name, request)
-    state.record_retrieval(request, tool.run(request))
+    result = tool.run(request)
+    state.record_retrieval(request, result)
+    for passage in result.passages:
+        state.record_note_from_passage(passage)
 
 
 def critique_node(state: ResearchState) -> Critique:
-    """Judge the evidence gathered so far and record the verdict."""
+    """Judge the notes gathered so far and record the verdict."""
     verdict = critique(
         state.question,
-        state.evidence,
+        state.notes,
         unanswered=state.unanswered_sub_questions,
     )
     state.record_critique(verdict)
@@ -114,8 +124,8 @@ def critique_node(state: ResearchState) -> Critique:
 
 
 def search_notes_node(state: ResearchState, tool: SearchNotesTool) -> None:
-    """Search gathered evidence when retrieval capacity remains, without adding evidence."""
-    request = SearchNotesRequest(question=state.question, notes=tuple(state.evidence))
+    """Rank the run's own notes when retrieval capacity remains, without adding evidence."""
+    request = SearchNotesRequest(question=state.question, notes=tuple(state.notes))
     state.record_notes_search_call(request)
     state.record_notes_search(request, tool.run(request))
 

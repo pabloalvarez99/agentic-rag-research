@@ -15,6 +15,7 @@ from agentic_rag.agent import (
     synthesize,
 )
 from agentic_rag.agent.state import ResearchStatus
+from agentic_rag.notes import Note, note_from_passage
 from agentic_rag.tools import Passage
 
 SHORT = "What does hybrid retrieval buy over dense retrieval alone?"
@@ -26,6 +27,18 @@ COMPOUND = (
 
 def passage(chunk_id: str, text: str, rank: int = 1) -> Passage:
     return Passage(chunk_id=chunk_id, source_path="docs/x.md", text=text, rank=rank)
+
+
+def note(chunk_id: str, text: str, position: int = 1) -> Note:
+    """Return the note a retrieved passage supports, the way the loop writes it."""
+    written = note_from_passage(passage(chunk_id, text), position=position)
+    assert written is not None
+    return written
+
+
+def ungrounded(text: str, position: int = 1) -> Note:
+    """Return a note no retrieved chunk backs, which the free path never produces."""
+    return Note(id=f"note-{position}", claim=text, source="docs/x.md", citation=None)
 
 
 # --- planner ----------------------------------------------------------------
@@ -76,24 +89,55 @@ def test_a_long_question_that_splits_into_nothing_falls_back_to_itself() -> None
 # --- critic -----------------------------------------------------------------
 
 
-def test_the_score_is_passages_plus_covered_question_terms() -> None:
+def test_the_score_is_relevant_grounded_notes_plus_covered_question_terms() -> None:
     verdict = critique(
         "hybrid retrieval",
-        [passage("a", "Hybrid retrieval fuses two rankings.")],
+        [note("a", "Hybrid retrieval fuses two rankings.")],
     )
 
     assert verdict.note_count == 1
+    assert verdict.grounded_note_count == 1
+    assert verdict.relevant_note_count == 1
     assert verdict.keyword_overlap == 2
     assert verdict.score == 3
     assert verdict.sufficient
     assert verdict.gaps == ()
 
 
+def test_a_note_no_chunk_backs_is_scored_by_neither_half() -> None:
+    grounded = critique("hybrid retrieval", [note("a", "Hybrid retrieval fuses two rankings.")])
+    floating = critique("hybrid retrieval", [ungrounded("Hybrid retrieval fuses two rankings.")])
+
+    assert grounded.sufficient
+    assert not floating.sufficient
+    assert floating.note_count == 1
+    assert floating.grounded_note_count == 0
+    assert floating.relevant_note_count == 0
+    assert floating.keyword_overlap == 0
+    assert floating.score == 0
+    assert [gap.kind for gap in floating.gaps] == ["uncovered_terms", "ungrounded_notes"]
+
+
+def test_a_grounded_note_about_something_else_does_not_count_toward_the_threshold() -> None:
+    verdict = critique(
+        "hybrid retrieval",
+        [
+            note("a", "Hybrid retrieval fuses two rankings.", position=1),
+            note("b", "Keystores belong outside version control.", position=2),
+        ],
+    )
+
+    assert verdict.note_count == 2
+    assert verdict.grounded_note_count == 2
+    assert verdict.relevant_note_count == 1
+    assert verdict.score == 3
+
+
 def test_the_critic_requests_note_search_only_when_multiple_notes_are_sufficient() -> None:
-    one = critique("hybrid retrieval", [passage("a", "Hybrid retrieval fuses rankings.")])
+    one = critique("hybrid retrieval", [note("a", "Hybrid retrieval fuses rankings.")])
     many = critique(
         "hybrid retrieval",
-        [passage("a", "Hybrid search."), passage("b", "Retrieval fuses rankings.")],
+        [note("a", "Hybrid search."), note("b", "Retrieval fuses rankings.", position=2)],
     )
 
     assert one.requested_tool is None
@@ -102,13 +146,13 @@ def test_the_critic_requests_note_search_only_when_multiple_notes_are_sufficient
 
 
 def test_evidence_below_the_threshold_is_not_sufficient() -> None:
-    verdict = critique("hybrid retrieval reranking", [passage("a", "Hybrid search.")])
+    verdict = critique("hybrid retrieval reranking", [note("a", "Hybrid search.")])
 
     assert verdict.score < SUFFICIENT_SCORE
     assert not verdict.sufficient
 
 
-def test_a_high_score_without_a_single_passage_is_still_not_sufficient() -> None:
+def test_a_high_score_without_a_single_note_is_still_not_sufficient() -> None:
     verdict = critique("hybrid retrieval reranking chunking citations", [])
 
     assert verdict.note_count == 0
@@ -132,7 +176,7 @@ def test_a_sub_question_that_found_nothing_is_never_proposed_again() -> None:
 
 
 def test_uncovered_terms_are_named_and_become_a_follow_up() -> None:
-    verdict = critique("hybrid retrieval and reranking", [passage("a", "Hybrid search only.")])
+    verdict = critique("hybrid retrieval and reranking", [note("a", "Hybrid search only.")])
 
     uncovered = next(gap for gap in verdict.gaps if gap.kind == "uncovered_terms")
     assert "reranking" in uncovered.detail
@@ -141,7 +185,7 @@ def test_uncovered_terms_are_named_and_become_a_follow_up() -> None:
 
 
 def test_evidence_that_covers_every_term_but_stays_thin_says_so() -> None:
-    verdict = critique("chunking", [passage("a", "Chunking splits a document.")])
+    verdict = critique("chunking", [note("a", "Chunking splits a document.")])
 
     assert not verdict.sufficient
     assert [gap.kind for gap in verdict.gaps] == ["thin_evidence"]

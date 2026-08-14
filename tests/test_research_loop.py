@@ -187,25 +187,37 @@ def test_the_trace_records_every_stage_in_order(tool: RetrieveTool) -> None:
         "plan_created",
         "tool_call",
         "tool_result",
+        *["note_added"] * len(state.notes),
         "critique",
         "tool_call",
         "tool_result",
         "synthesize",
         "stop",
     ]
-    call, result, verdict = state.trace[1], state.trace[2], state.trace[3]
+    call, result = state.trace[1], state.trace[2]
     assert call.payload["tool"] == "retrieve"
     assert result.payload["backend"] == "fake"
     assert result.payload["evidence_ids"] == list(state.evidence_ids)
-    assert verdict.payload["score"] == verdict.payload["note_count"] + (
+
+    added = [event for event in state.trace if event.event == "note_added"]
+    assert [event.payload["id"] for event in added] == list(state.note_ids)
+    assert [event.payload["citation"] for event in added] == list(state.evidence_ids)
+    assert all(event.payload["grounded"] is True for event in added)
+
+    verdict = state.trace[3 + len(state.notes)]
+    assert verdict.event == "critique"
+    assert verdict.payload["score"] == verdict.payload["relevant_note_count"] + (
         verdict.payload["keyword_overlap"]
     )
+    assert verdict.payload["note_count"] == len(state.notes)
+    assert verdict.payload["grounded_note_count"] == len(state.grounded_notes)
     assert verdict.payload["sufficient"] is True
     assert verdict.payload["requested_tool"] == "search_notes"
-    notes_call, notes_result = state.trace[4], state.trace[5]
+    notes_call, notes_result = state.trace[4 + len(state.notes)], state.trace[5 + len(state.notes)]
     assert notes_call.payload["tool"] == "search_notes"
     assert notes_result.payload["backend"] == "in_process"
-    assert notes_result.payload["inspected"] == len(state.evidence)
+    assert notes_result.payload["inspected"] == len(state.notes)
+    assert notes_result.payload["note_ids"]
 
 
 def test_note_search_is_optional_and_stays_inside_the_step_budget(tool: RetrieveTool) -> None:

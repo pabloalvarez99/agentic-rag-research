@@ -29,6 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agentic_rag.agent.critic import Critique, Gap
 from agentic_rag.agent.synthesizer import Citation, Synthesis
+from agentic_rag.notes import Note, note_from_passage, note_id
 from agentic_rag.tools.retrieve import Passage, RetrieveRequest, RetrieveResult, RetrieveTool
 from agentic_rag.tools.search_notes import SearchNotesRequest, SearchNotesResult, SearchNotesTool
 
@@ -69,6 +70,7 @@ TraceEventName = Literal[
     "plan_created",
     "tool_call",
     "tool_result",
+    "note_added",
     "critique",
     "synthesize",
     "stop",
@@ -159,6 +161,10 @@ class ResearchState(BaseModel):
         default_factory=list,
         description="Distinct passages gathered so far, in the order they were first seen.",
     )
+    notes: list[Note] = Field(
+        default_factory=list,
+        description="What the run is relying on, in the order the claims were written.",
+    )
     gaps: list[Gap] = Field(
         default_factory=list,
         description="What the most recent critique found missing. Empty once sufficient.",
@@ -208,6 +214,21 @@ class ResearchState(BaseModel):
     def evidence_ids(self) -> tuple[str, ...]:
         """Return the chunk ids gathered so far, in first-seen order."""
         return tuple(passage.chunk_id for passage in self.evidence)
+
+    @property
+    def note_ids(self) -> tuple[str, ...]:
+        """Return the ids of the notes written so far, oldest first."""
+        return tuple(note.id for note in self.notes)
+
+    @property
+    def grounded_notes(self) -> tuple[Note, ...]:
+        """Return the notes a retrieved chunk backs."""
+        return tuple(note for note in self.notes if note.is_grounded)
+
+    @property
+    def cited_chunk_ids(self) -> frozenset[str]:
+        """Return the chunk ids the note store already rests on."""
+        return frozenset(note.citation for note in self.notes if note.citation is not None)
 
     @property
     def is_finished(self) -> bool:
@@ -331,6 +352,79 @@ class ResearchState(BaseModel):
         )
         return record
 
+    def record_note(self, *, claim: str, source: str, citation: str | None = None) -> Note | None:
+        """Write one note into the store and return it.
+
+        The store mints the id, so a caller cannot invent one that collides with a
+        note already written or leave a hole in the sequence. Traces ``note_added``
+        with the whole note: a claim that entered the run without a trace event is a
+        claim nobody can date.
+
+        A note is skipped, and nothing is traced, when it duplicates one already
+        written — same citation and same claim. Duplicates would inflate every count
+        the critic reads while adding nothing new to answer from.
+
+        Args:
+            claim: The sentence being relied on, already lifted from its source.
+            source: Corpus-relative path the claim came from.
+            citation: Chunk id backing the claim, or ``None`` when nothing does.
+
+        Returns:
+            The note, or ``None`` when the claim was empty or already written.
+
+        Raises:
+            RunAlreadyFinished: The run has already stopped.
+        """
+        self._require_running()
+        if not claim:
+            return None
+        if any(note.citation == citation and note.claim == claim for note in self.notes):
+            return None
+
+        note = Note(
+            id=note_id(len(self.notes) + 1),
+            claim=claim,
+            source=source,
+            citation=citation,
+        )
+        self.notes.append(note)
+        self._record(
+            "note_added",
+            {
+                "id": note.id,
+                "claim": note.claim,
+                "source": note.source,
+                "citation": note.citation,
+                "grounded": note.is_grounded,
+            },
+        )
+        return note
+
+    def record_note_from_passage(self, passage: Passage) -> Note | None:
+        """Write the note a retrieved passage supports, if it supports one.
+
+        The claim is lifted verbatim by :func:`~agentic_rag.notes.claim_from_text`;
+        nothing here rewrites what a backend returned.
+
+        Args:
+            passage: The retrieved chunk to take a claim from.
+
+        Returns:
+            The note, or ``None`` when the passage carried no claim or was already
+            noted.
+
+        Raises:
+            RunAlreadyFinished: The run has already stopped.
+        """
+        candidate = note_from_passage(passage, position=len(self.notes) + 1)
+        if candidate is None:
+            return None
+        return self.record_note(
+            claim=candidate.claim,
+            source=candidate.source,
+            citation=candidate.citation,
+        )
+
     def record_notes_search_call(self, request: SearchNotesRequest) -> None:
         """Record the critic-requested local search before it executes."""
         self._require_running()
@@ -357,7 +451,10 @@ class ResearchState(BaseModel):
                 "tool": SearchNotesTool.name,
                 "backend": "in_process",
                 "question": request.question,
-                "evidence_ids": [note.chunk_id for note in result.matches],
+                "note_ids": [note.id for note in result.matches],
+                "evidence_ids": [
+                    note.citation for note in result.matches if note.citation is not None
+                ],
                 "inspected": result.inspected,
             },
         )
@@ -380,6 +477,8 @@ class ResearchState(BaseModel):
             "critique",
             {
                 "note_count": verdict.note_count,
+                "grounded_note_count": verdict.grounded_note_count,
+                "relevant_note_count": verdict.relevant_note_count,
                 "keyword_overlap": verdict.keyword_overlap,
                 "score": verdict.score,
                 "sufficient": verdict.sufficient,

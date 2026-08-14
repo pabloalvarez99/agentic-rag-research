@@ -9,6 +9,23 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- A typed note store. `Note` is `{id, claim, source, citation}`: the claim is the
+  retrieved chunk verbatim, `citation` is the chunk id backing it, and `None` means
+  nothing does. The state mints positional ids, refuses duplicates, and traces every
+  write as a `note_added` event. Rationale and rejected alternatives:
+  [ADR-0004](docs/adr/0004-notes-are-a-store.md).
+- `search_notes` now ranks the run's own note store rather than the raw passage buffer.
+  It still cannot retrieve, generate, contact a provider, or spend a retrieval step.
+
+### Changed
+
+- The stop rule scores `question terms covered by grounded claims + grounded, on-topic
+  notes` instead of `passage count + covered terms`. A note counts only when a chunk id
+  backs it and its claim shares a term with the question, so volume alone no longer
+  clears the threshold. `Critique` and the `critique` trace event now carry
+  `grounded_note_count` and `relevant_note_count` alongside the existing arithmetic.
+  The 17 goldens pass unchanged under the new rule.
+
 - `POST /v1/research/trace`: the same request as `POST /v1/research`, answered with only
   that run's trace as a JSON attachment. It is a projection of the existing response and
   introduces no new event semantics; nothing is stored between requests.
