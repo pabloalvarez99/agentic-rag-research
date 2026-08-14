@@ -97,6 +97,20 @@ def compare_home(request: Request) -> Response:
     )
 
 
+@router.get("/pack", response_class=HTMLResponse, summary="Load an experiment pack")
+def pack_home(request: Request) -> Response:
+    """Render the experiment-pack loader (two runs + optional policy + compare).
+
+    Server ids are never resolved. The page posts full payloads to
+    ``POST /v1/experiments/pack``.
+    """
+    return templates.TemplateResponse(
+        request=request,
+        name="pack.html",
+        context=_page_context(request, question=DEMO_QUESTION, selected_max_steps="4"),
+    )
+
+
 @router.post("/ui/research", response_class=HTMLResponse)
 def research_ui(
     request: Request,

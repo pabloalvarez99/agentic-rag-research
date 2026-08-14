@@ -1,8 +1,9 @@
 # Golden research dataset
 
-`golden_research.jsonl` contains 18 hand-written cases for the deterministic
-research loop. The cases target the packaged 20-passage Markdown corpus and run
-with the fake backend: no API key, network call, or billed provider is involved.
+`golden_research.jsonl` contains **48** hand-written cases for the deterministic
+research loop (season v1.0 floor n≥40). The cases target the packaged Markdown
+corpus and run with the fake backend: no API key, network call, or billed
+provider is involved.
 
 Run the complete scorecard from the repository root:
 
@@ -16,20 +17,18 @@ failed, and `2` means the dataset could not be loaded or validated.
 
 ## Coverage
 
-| Category | Cases | Purpose |
-| --- | ---: | --- |
-| `answerable_single_hop` | 4 | One retrieval step should produce grounded evidence and a terminal answer. |
-| `answerable_multi_hop` | 3 | Compound questions exercise planning and evidence gathered across concepts. |
-| `unanswerable` | 4 | Off-corpus questions must refuse with no citations and named gaps. |
-| `thin_evidence` | 3 | Some evidence exists, but it is insufficient for a completed answer — including the critic-can-lose case where notes are present but off-topic. |
-| `budget_stress` | 4 | Paired low/high-budget cases make step consumption and terminal policy observable. |
+| Category | Purpose |
+| --- | --- |
+| `answerable_single_hop` | One retrieval step → grounded evidence and a terminal answer. |
+| `answerable_multi_hop` | Compound questions; multi-step evidence. |
+| `unanswerable` | Off-corpus questions must refuse; never invent. |
+| `thin_evidence` | Notes may exist but insufficient/off-topic — includes **critic-can-lose**. |
+| `budget_stress` | Low/high budgets and paired questions. |
+| `tool_budget` | Per-tool `max_calls` exhaust → `tool_budget_spent`. |
 
-The 18-case set includes four explicit unanswerable cases, four budget-stress
-cases, and one critic-discipline case (`critic-notes-exist-not-success`) that
-must refuse when notes exist but do not support the question. Required loader
-categories are `answerable_multi_hop`, `unanswerable`, and `budget_stress`; the
-additional slices keep ordinary, thin-evidence, and critic-can-lose paths visible
-in the scorecard.
+Season v1.0 requires **n ≥ 40**, difficulty predicates, and permanent
+`critic-notes-exist-not-success` → `refused`. Loader also requires
+`tool_budget` and `thin_evidence` categories.
 
 ## Record schema
 
@@ -44,7 +43,8 @@ Each JSONL line is one strict `GoldenCase`; unknown fields are rejected.
 | `top_k` | Maximum passages returned per retrieval, from 1 through 50. |
 | `pair_id` | Optional link between cases that keep the question identical while changing a control such as budget. |
 | `expect.status` | Expected `done`, `refused`, or `budget_exhausted` terminal state. |
-| `expect.stop_reason` | Expected `evidence_sufficient`, `no_evidence`, `insufficient_evidence`, or `budget_spent`. |
+| `expect.stop_reason` | Expected closed-set reason including `tool_budget_spent`. |
+| `max_tool_calls` | Optional per-tool caps for the case. |
 | `expect.steps_used` | Exact retrieval steps expected from the deterministic loop. |
 | `expect.min_citations`, `expect.max_citations` | Inclusive citation-count bounds. |
 | `expect.cite_chunk_ids_any` | Acceptable corpus chunk ids; at least one must be cited when the list is non-empty. |

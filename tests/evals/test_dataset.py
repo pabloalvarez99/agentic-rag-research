@@ -13,11 +13,15 @@ from agentic_rag.evals.dataset import DEFAULT_DATASET, DatasetError, load_datase
 def test_committed_dataset_is_strict_and_covers_the_required_slices() -> None:
     cases = load_dataset()
 
-    assert len(cases) == 18
+    assert len(cases) >= 40
     assert len({case.id for case in cases}) == len(cases)
-    assert {"answerable_multi_hop", "unanswerable", "budget_stress", "thin_evidence"} <= {
-        case.category for case in cases
-    }
+    assert {
+        "answerable_multi_hop",
+        "unanswerable",
+        "budget_stress",
+        "thin_evidence",
+        "tool_budget",
+    } <= {case.category for case in cases}
     critic_case = next(case for case in cases if case.id == "critic-notes-exist-not-success")
     assert critic_case.expect.status == "refused"
     assert critic_case.expect.min_citations >= 1

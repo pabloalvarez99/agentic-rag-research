@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Experiment pack · Free demo{% endblock %}
+{% block content %}
+  <header class="hero compact">
+    <p class="eyebrow">Experiment pack</p>
+    <h1>Two runs, one policy, one hash.</h1>
+    <p class="lede">Load two finished <code>run-*.json</code> files (and optional policy). The server builds a pack with compare diff and <code>pack_hash</code> — no server id lookup.</p>
+  </header>
+
+  <section class="query-panel" aria-labelledby="pack-title">
+    <div class="panel-heading">
+      <div><p class="eyebrow">Local files</p><h2 id="pack-title">Load pack inputs</h2></div>
+      <span class="mode-tag">Files are truth</span>
+    </div>
+    <form id="pack-form" action="#" method="post">
+      <label for="pack-left">Left run (JSON)</label>
+      <input id="pack-left" type="file" accept="application/json,.json" required>
+
+      <label for="pack-right">Right run (JSON)</label>
+      <input id="pack-right" type="file" accept="application/json,.json" required>
+
+      <label for="pack-policy">Policy (optional JSON)</label>
+      <input id="pack-policy" type="file" accept="application/json,.json">
+
+      <div class="actions">
+        <button type="submit">Build pack</button>
+        <a href="/compare">Compare only</a>
+        <a href="/">Research</a>
+      </div>
+    </form>
+    <p id="pack-error" class="error-message" hidden></p>
+  </section>
+
+  <section id="pack-summary" class="outcome" hidden aria-live="polite">
+    <div class="outcome-header">
+      <div>
+        <p class="eyebrow">Manifest</p>
+        <h2>Pack result</h2>
+      </div>
+      <p id="pack-hash" class="mode-tag">—</p>
+    </div>
+    <pre id="pack-manifest" class="report"></pre>
+    <pre id="pack-compare" class="report"></pre>
+  </section>
+
+  <footer class="page-footer">
+    <span>Posts to <code>POST /v1/experiments/pack</code>. Recycle-safe: payloads only.</span>
+    <nav aria-label="Service links"><a href="/">Research</a><a href="/compare">Compare</a><a href="/health">Health</a></nav>
+  </footer>
+
+  <script>
+  (function () {
+    var form = document.getElementById("pack-form");
+    if (!form) return;
+    var err = document.getElementById("pack-error");
+    var summary = document.getElementById("pack-summary");
+    var hashEl = document.getElementById("pack-hash");
+    var manifestEl = document.getElementById("pack-manifest");
+    var compareEl = document.getElementById("pack-compare");
+
+    function readJson(file) {
+      return file.text().then(function (t) { return JSON.parse(t); });
+    }
+
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      err.hidden = true;
+      summary.hidden = true;
+      var leftF = document.getElementById("pack-left").files[0];
+      var rightF = document.getElementById("pack-right").files[0];
+      var policyF = document.getElementById("pack-policy").files[0];
+      if (!leftF || !rightF) return;
+      Promise.all([readJson(leftF), readJson(rightF), policyF ? readJson(policyF) : Promise.resolve(null)])
+        .then(function (parts) {
+          var left = parts[0], right = parts[1], policy = parts[2];
+          if (!policy) {
+            policy = {
+              retriever: left.retriever || "fake",
+              max_steps: Math.max(left.max_steps || 4, right.max_steps || 4),
+              max_calls: { retrieve: Math.max(left.max_steps || 4, right.max_steps || 4) },
+              season_tag: "v1.0",
+              billed: false
+            };
+          }
+          return fetch("/v1/experiments/pack", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ policy: policy, left: left, right: right, experiments: [] })
+          });
+        })
+        .then(function (res) {
+          return res.json().then(function (body) {
+            if (!res.ok) throw new Error(body.error || res.statusText);
+            return body;
+          });
+        })
+        .then(function (body) {
+          hashEl.textContent = (body.manifest && body.manifest.pack_hash || "").slice(0, 16) + "…";
+          manifestEl.textContent = JSON.stringify(body.manifest, null, 2);
+          compareEl.textContent = JSON.stringify(body.compare, null, 2);
+          summary.hidden = false;
+        })
+        .catch(function (e) {
+          err.textContent = String(e.message || e);
+          err.hidden = false;
+        });
+    });
+  })();
+  </script>
+{% endblock %}

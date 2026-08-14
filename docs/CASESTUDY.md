@@ -176,6 +176,76 @@ Honesty bound: serverless instances do not share the in-memory run store; fetch 
 download immediately after the run. Prefer the downloaded JSON for compare — that is why
 compare takes payloads, not ids.
 
+## v1.0 — from demo loop to experiment lab
+
+v0.3 proved the mechanism on a hosted free path. v1.0 answers a different interviewer
+question: **is this a lab you can re-run, or a graph you demo once?** The season plan in
+[SEASON.md](SEASON.md) froze fifteen invariants before code moved: budgets in state,
+critic can lose, compare on payloads, fixture retriever, no live web, and a control
+eval floor of **n ≥ 40**.
+
+### Experiment records
+
+A finished run is already a full artifact. An **experiment record** is the compact lab
+line: `id`, `seed`, `budget` (global steps + per-tool `max_calls`), `note_ids`,
+`stop_reason`, optional `pack_hash`, plus tool-call counts and status. Scorecards and
+packs can cite the record without re-opening every passage. The free path stays
+deterministic at seed 0; the field exists so later seeded planners do not rewrite the
+schema.
+
+### Control goldens at n ≥ 40
+
+The committed set grew from 18 to **48** cases without softening
+`critic-notes-exist-not-success`. Slices cover answerable single/multi hop, unanswerable,
+thin/off-topic notes, budget stress, and **tool_budget**. Difficulty predicates in the
+loader fail closed when a slice is all-trivial (for example, unanswerable never expects
+`done`; thin never expects `done`; tool_budget must include `tool_budget_spent`). Metrics
+remain **control**: pass rate, stop-reason distribution, citation presence, refused
+unanswerable rate — with `billed_usd = 0`. They still do not claim answer quality or
+uplift over a single pass.
+
+### Three tools is not a platform
+
+v1 free path exposes exactly three tools: `retrieve`, `search_notes`, and fixture
+`lexicon`. Each has `max_calls` in state; exhaustion is `tool_budget_spent`, not a hang.
+Planner, critic, and synthesizer remain pure functions. [ADR-0006](adr/0006-three-tools-not-a-platform.md)
+records why this is not a plugin registry, multi-tenant sandbox, or live-web research
+agent. The third tool exists to exercise budgets and traces, not to invent capabilities.
+
+### Experiment packs
+
+An experiment pack is a directory or zip of policy, two full run payloads, compare
+diff, experiment lines, and a content `pack_hash`. UI `/pack` and `POST /v1/experiments/pack`
+load payloads only — still no server-id lookup after recycle. Round-trip tests recompute
+compare and refuse a hash mismatch. Files remain the source of truth; the pack is how
+you hand a lawyer or hiring manager two runs and the policy that produced them.
+
+### Load honesty
+
+[`docs/assets/load.json`](assets/load.json) records **50** free-path researches in one
+process: p50/p95 latency, cold-start ms, hardware, status counts, and an explicit label
+that this is **not** production capacity planning. Fixture only, billed false. That is
+the opposite of a vanity throughput claim on a multi-region fleet.
+
+### What is still PLANNED
+
+Durable multi-instance storage, live web tools, default paid LLM planner/critic, hosted
+HTTP-P1 without a captain-configured URL, Tier-2 faithfulness judges in CI, and any
+claim that three tools make an agent platform. v1.0 ships the lab, not the SaaS.
+
+### 15-minute DEMO (v1.0)
+
+Host remains **only** <https://pax-agentic-rag.vercel.app> / project `pax-agentic-rag`.
+
+1. Health + honesty copy on `/`.
+2. Refuse off-corpus (Patagonia / Antarctic chess). Download `run.json`.
+3. Critic-can-lose story: notes exist is not success (scorecard golden).
+4. Answerable control with citations; download second run.
+5. `/compare` on the two files (payloads, not ids).
+6. `/pack` — build pack, show `pack_hash` and compare.
+7. Optional: curl tool-budget request or show load.json numbers and CASESTUDY trade-offs.
+8. `pwsh scripts/hosted_smoke.ps1` as the transcriptable contract.
+
 ## What I would test next
 
 1. Add a one-pass answer baseline over the same fixed goldens.
@@ -183,4 +253,6 @@ compare takes payloads, not ids.
 3. Exercise the HTTP adapter against P1's free stack, including refusal and dependency-down.
 4. Add wall-clock and spend ceilings only when a hosted path creates those costs.
 5. Revisit a graph framework only when checkpoint/resume or parallel fan-out is required.
+6. Grow tool_budget goldens further once a planner can deliberately request lexicon under
+   stress without changing critic-can-lose discipline.
 

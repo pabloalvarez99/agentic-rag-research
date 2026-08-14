@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from time import perf_counter
 from typing import Final, Protocol
 
@@ -68,6 +68,7 @@ class ResearchRunner(Protocol):
         tool: RetrieveTool | None = None,
         max_steps: int = DEFAULT_MAX_STEPS,
         top_k: int = DEFAULT_TOP_K,
+        max_tool_calls: Mapping[str, int] | None = None,
         listener: TraceListener | None = None,
     ) -> ResearchState:
         """Research ``question`` under a step budget and return the finished state.
@@ -225,6 +226,7 @@ class ResearchService:
                 tool=tool,
                 max_steps=request.max_steps,
                 top_k=request.top_k,
+                max_tool_calls=request.max_tool_calls,
                 listener=listener,
             )
         except ToolError as error:

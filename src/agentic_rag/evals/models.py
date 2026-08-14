@@ -7,7 +7,13 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 TerminalStatus = Literal["done", "refused", "budget_exhausted"]
-StopReason = Literal["evidence_sufficient", "no_evidence", "insufficient_evidence", "budget_spent"]
+StopReason = Literal[
+    "evidence_sufficient",
+    "no_evidence",
+    "insufficient_evidence",
+    "budget_spent",
+    "tool_budget_spent",
+]
 
 
 class GoldenExpectation(BaseModel):
@@ -45,6 +51,7 @@ class GoldenCase(BaseModel):
     max_steps: int = Field(ge=1, le=20)
     top_k: int = Field(ge=1, le=50)
     pair_id: str | None
+    max_tool_calls: dict[str, int] | None = None
     expect: GoldenExpectation
     why: str = Field(min_length=1)
 

@@ -69,8 +69,10 @@ class StubRunner:
         tool: RetrieveTool | None = None,
         max_steps: int = DEFAULT_MAX_STEPS,
         top_k: int = DEFAULT_TOP_K,
+        max_tool_calls: object | None = None,
         listener: TraceListener | None = None,
     ) -> ResearchState:
+        del max_tool_calls  # accepted for ResearchService parity; stubs ignore caps
         if self.error is not None:
             raise self.error
         state = self.state if self.state is not None else build_state(question=question)
