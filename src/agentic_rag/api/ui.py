@@ -82,6 +82,21 @@ def research_home(request: Request) -> Response:
     )
 
 
+@router.get("/compare", response_class=HTMLResponse, summary="Compare two downloaded run files")
+def compare_home(request: Request) -> Response:
+    """Render the client-side compare surface for two downloaded run JSON files.
+
+    Files are the source of truth after a serverless recycle forgets in-memory ids.
+    The page never asks the server to resolve a run by id; it either diffs in the
+    browser or posts both full payloads to ``POST /v1/runs/compare``.
+    """
+    return templates.TemplateResponse(
+        request=request,
+        name="compare.html",
+        context=_page_context(request, question=DEMO_QUESTION, selected_max_steps="4"),
+    )
+
+
 @router.post("/ui/research", response_class=HTMLResponse)
 def research_ui(
     request: Request,

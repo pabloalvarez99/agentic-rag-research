@@ -25,7 +25,7 @@ re-litigate those decisions and does not reimplement that retrieval stack; it co
 it and asks the next question: **what does an agent add over a single retrieval pass,
 and how do you tell?**
 
-## Status: v0.2.0 — auditable free path (notes store · run artifacts · stream · control evals)
+## Status: v0.3.0 — compare payloads · hosted contract · critic can lose
 
 The loop is complete as a library and exposed through both runtime surfaces:
 `plan → retrieve → critique`, bounded by a step budget, ending in a report whose every
@@ -51,11 +51,13 @@ Locally the same page is <http://127.0.0.1:8010/>.
 | `GET /v1/research/stream` SSE step stream | **LIVE** | plan → retrieve → critique events; stream tests |
 | Fake retriever over packaged Markdown | **LIVE** | default, offline, credential-free |
 | production-rag HTTP adapter | **LIVE (opt-in)** | mock transport; live slice gated + skipped in CI |
-| 17-case golden dataset | **LIVE** | five behavior slices; [schema and coverage](data/eval/README.md) |
+| 18-case golden dataset (critic can lose) | **LIVE** | six slices; [schema and coverage](data/eval/README.md) |
+| Payload compare + full-run download | **LIVE** | `POST /v1/runs/compare`, `GET /v1/runs/{id}/run.json`, `/compare` UI; [ADR-0005](docs/adr/0005-compare-on-payloads.md) |
+| Hosted contract smoke script | **LIVE** | `scripts/hosted_smoke.ps1` (opt-in network; CI offline) |
 | Control scorecard (steps, stop reasons, citations, refused_unanswerable) | **LIVE** | never quality / never "beats GPT" |
 | Research UI + live step timeline + stored-trace download | **LIVE** | `/`, SSE, `GET /v1/runs/{id}/trace.json` |
 | Local `search_notes` tool | **LIVE (optional)** | critic request, deterministic tool tests, trace events |
-| Tagged release | **LIVE** | [v0.2.0 notes](docs/releases/v0.2.0.md) |
+| Tagged release | **LIVE** | [v0.3.0 notes](docs/releases/v0.3.0.md) · prior [v0.2.0](docs/releases/v0.2.0.md) |
 | UI captures of the three outcomes | **LIVE** | [committed PNGs](#what-that-looks-like-before-you-run-it) rebuilt by `scripts/capture_ui.py` |
 | `GET /metrics` Prometheus exposition | **LIVE** | `process_up`, `requests_total`, `research_total`, `research_steps_used_total` |
 | Hosted free-path demo | **LIVE** | [pax-agentic-rag.vercel.app](https://pax-agentic-rag.vercel.app) — fixture only |
@@ -306,7 +308,7 @@ will not publish a quality number produced by it.
 | `src/agentic_rag/templates/`, `static/` | Accessible dark UI for the free research path and typed failures. |
 | `src/agentic_rag/evals/`, `data/eval/` | Offline evaluation runner and committed golden research cases. |
 | `tests/` | Offline tests. No network, no credentials. |
-| `data/eval/` | 17 hand-written goldens, schema, and curation rules for the M5 runner. |
+| `data/eval/` | 18 hand-written goldens, schema, and curation rules for the free-path runner. |
 | `scripts/capture_ui.py`, `docs/assets/` | Deterministic Playwright capture of the three UI outcomes, and the committed PNGs it writes. |
 | `docs/architecture.md` | Implemented loop, tool boundaries, retrieval seam, budgets, failures, and milestones. |
 | `docs/adr/` | Three accepted decision records with alternatives and consequences. |

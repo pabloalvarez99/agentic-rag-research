@@ -32,6 +32,18 @@ def test_home_is_an_accessible_free_demo(client: TestClient) -> None:
     assert 'label for="max_steps"' in response.text
     assert "Demo mode (free / deterministic)" in response.text
     assert "OpenAI" not in response.text
+    assert 'href="/compare"' in response.text
+
+
+def test_compare_page_loads_two_file_inputs(client: TestClient) -> None:
+    response = client.get("/compare")
+
+    assert response.status_code == 200
+    assert 'id="compare-form"' in response.text
+    assert 'id="left-file"' in response.text
+    assert 'id="right-file"' in response.text
+    assert "No server id lookup" in response.text
+    assert "/v1/runs/compare" in response.text
 
 
 def test_submit_renders_the_whole_inspectable_run(client: TestClient) -> None:

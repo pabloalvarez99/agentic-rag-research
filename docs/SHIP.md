@@ -2,7 +2,7 @@
 
 **Status: public-ready free path.** A reviewer can clone this repository and run the
 bounded research loop through the UI, API, CLI, or evaluation harness without a credential,
-provider network call, or billed request. The synchronized 17-case golden set and JSON
+provider network call, or billed request. The synchronized 18-case golden set and JSON
 scorecard are contract evidence, not an answer-quality claim.
 
 This is the short operational truth. The [README](../README.md) is the hiring-facing tour,
@@ -84,7 +84,9 @@ The CLI remains a script-friendly path:
 | Fake retrieval over committed Markdown | **LIVE** | packaged corpus and corpus tests |
 | `POST /v1/research`, CLI, health | **LIVE** | API/CLI parity and OpenAPI tests |
 | Optional production-rag HTTP adapter | **LIVE (opt-in)** | mock transport; requires `PRODUCTION_RAG_URL` |
-| Golden evaluation and scorecard | **LIVE** | 17 cases across five slices |
+| Golden evaluation and scorecard | **LIVE** | 18 cases; critic-can-lose included |
+| Payload compare (not server ids) | **LIVE** | `POST /v1/runs/compare` + `/compare` UI; ADR-0005 |
+| Hosted smoke script | **LIVE** | `scripts/hosted_smoke.ps1` (network opt-in) |
 | Research UI and typed failures | **LIVE** | UI route/tests and real-server CI smoke |
 | Local `search_notes` | **LIVE (optional)** | critic request, tool/trace tests; no provider |
 | Committed UI captures | **LIVE** | three PNGs in `docs/assets`; `scripts/capture_ui.py`, byte-identical on re-run |

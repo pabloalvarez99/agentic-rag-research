@@ -123,23 +123,27 @@ The golden scorecard reports steps used, stop-reason distribution, citation pres
 adapter tests stay gated on `RUN_P1_INTEGRATION=1` + `PRODUCTION_RAG_URL` pointing at a
 local free stack; CI keeps them skipped and never points at a production-rag Vercel host.
 
-### 10-minute hosted DEMO
+### 10-minute hosted DEMO (v0.3)
 
 Host: <https://pax-agentic-rag.vercel.app> — fixture retriever only; **control demo, zero
-quality claim**.
+quality claim**. Project remains **`pax-agentic-rag`** (no second Vercel project).
 
 1. Open `/` (or `/docs`). Confirm honesty copy: free / deterministic, no API key.
 2. **Refused run.** Ask something off-corpus, e.g. `What were the quarterly revenues in
    Patagonia?`, budget 3. Expect status `refused`, stop reason `no_evidence` or
    `insufficient_evidence`, a report that names gaps, and no invented facts.
-3. **Answerable control.** Ask `Why do bounded research agents need explicit stop
+3. **Download the full run** immediately: `GET /v1/runs/{id}/run.json` (or the UI
+   "Download full run" link). After a recycle the id is gone; the file is the source of
+   truth.
+4. **Answerable control.** Ask `Why do bounded research agents need explicit stop
    reasons?` (or the form default). Expect `done`, citations, and a trace that includes
-   `plan_created` → `tool_*` → `note_added` → `critique` → `stop`.
-4. **Stream.** With JS on, steps append live from `GET /v1/research/stream` (offsets, not
+   `plan_created` → `tool_*` → `note_added` → `critique` → `stop`. Download that run too.
+5. **Compare.** Open `/compare`, load the two JSON files, read stop reason / steps /
+   notes / citations side by side. The typed diff is `POST /v1/runs/compare` on payloads,
+   not server ids ([ADR-0005](adr/0005-compare-on-payloads.md)).
+6. **Stream.** With JS on, steps append live from `GET /v1/research/stream` (offsets, not
    timestamps). Without JS, `POST /ui/research` still renders the full page.
-5. **Download.** Click "Download stored trace (JSON)" — that is
-   `GET /v1/runs/{request_id}/trace.json`, the stored artifact, not a re-run.
-6. **curl the same contract.**
+7. **curl the same contract** (or `pwsh scripts/hosted_smoke.ps1`).
 
 ```bash
 # answerable (fixture path)
@@ -148,8 +152,8 @@ curl -sS -X POST https://pax-agentic-rag.vercel.app/v1/research \
   -H "x-request-id: demo-done" \
   -d "{\"question\":\"Why do bounded research agents need explicit stop reasons?\",\"max_steps\":4,\"retriever\":\"fake\"}"
 
-# fetch the artifact
-curl -sS https://pax-agentic-rag.vercel.app/v1/runs/demo-done
+# download full run (compare input)
+curl -sS -OJ https://pax-agentic-rag.vercel.app/v1/runs/demo-done/run.json
 
 # refused
 curl -sS -X POST https://pax-agentic-rag.vercel.app/v1/research \
@@ -157,17 +161,20 @@ curl -sS -X POST https://pax-agentic-rag.vercel.app/v1/research \
   -H "x-request-id: demo-refused" \
   -d "{\"question\":\"What were the quarterly revenues in Patagonia?\",\"max_steps\":3,\"retriever\":\"fake\"}"
 
-# download trace
-curl -sS -OJ https://pax-agentic-rag.vercel.app/v1/runs/demo-refused/trace.json
+curl -sS -OJ https://pax-agentic-rag.vercel.app/v1/runs/demo-refused/run.json
+
+# compare payloads (not ids)
+curl -sS -X POST https://pax-agentic-rag.vercel.app/v1/runs/compare \
+  -H "content-type: application/json" \
+  -d "{\"left\":$(cat run-demo-done.json),\"right\":$(cat run-demo-refused.json)}"
 
 # stream (SSE)
 curl -sSN "https://pax-agentic-rag.vercel.app/v1/research/stream?question=Why%20use%20citations%20in%20RAG%3F&max_steps=4&retriever=fake"
 ```
 
-Honesty bound: serverless instances do not share the in-memory run store; fetch the id
-from the same instance that produced it (same request id header works for the POST+GET
-pair on one cold start only if both hit the same isolate — prefer downloading immediately
-after the run, or use the response body's `trace` field).
+Honesty bound: serverless instances do not share the in-memory run store; fetch or
+download immediately after the run. Prefer the downloaded JSON for compare — that is why
+compare takes payloads, not ids.
 
 ## What I would test next
 

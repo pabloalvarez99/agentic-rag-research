@@ -217,6 +217,65 @@ def test_every_run_ends_with_a_stop_event_and_a_terminal_status(
     assert [event.event for event in state.trace].count("stop") == 1
 
 
+def test_multi_hop_second_retrieve_is_justified_by_prior_critique(tool: RetrieveTool) -> None:
+    """Note/critique after retrieve-1 must justify retrieve-2 in the event sequence.
+
+    The multi-hop shape after a miss: hop-1 spends a step and returns nothing useful,
+    critique records the gap (and any note_added from hop-1), then hop-2 runs only
+    because that critique still left work — never because the loop blindly retries.
+    """
+    question = (
+        "Which vendor supplied the Reykjavik diesel generators, and then how does "
+        "reciprocal rank fusion combine two rankings into one?"
+    )
+    state = run_research(question, tool=tool, max_steps=4)
+
+    assert state.status is ResearchStatus.DONE
+    assert state.steps_taken == 2
+    events = [event.event for event in state.trace]
+    assert events[0] == "plan_created"
+
+    retrieve_idxs = [
+        index
+        for index, event in enumerate(state.trace)
+        if event.event == "tool_call" and event.payload.get("tool") == "retrieve"
+    ]
+    critique_idxs = [index for index, event in enumerate(state.trace) if event.event == "critique"]
+    assert len(retrieve_idxs) == 2
+    assert len(critique_idxs) >= 2
+
+    first_retrieve, second_retrieve = retrieve_idxs
+    first_critique = next(index for index in critique_idxs if index > first_retrieve)
+    assert first_critique < second_retrieve, "critique after hop-1 must precede hop-2"
+
+    first_verdict = state.trace[first_critique].payload
+    assert first_verdict["sufficient"] is False
+    # Trace stores gap *details* as strings; hop-2 must rest on hop-1 notes or those gaps.
+    notes_before_second = [
+        event
+        for event in state.trace[:second_retrieve]
+        if event.event == "note_added"
+    ]
+    gaps = first_verdict.get("gaps") or []
+    assert notes_before_second or gaps, "hop-2 must rest on hop-1 notes or critique gaps"
+    if gaps:
+        joined = " ".join(str(gap) for gap in gaps).casefold()
+        assert any(
+            marker in joined
+            for marker in (
+                "no passage was retrieved",
+                "no grounded claim mentions",
+                "thin",
+                "nothing has been retrieved",
+            )
+        ), f"critique gaps do not justify hop-2: {gaps!r}"
+
+    # After hop-2, a later critique may clear sufficiency — sequence stays ordered.
+    later_critiques = [index for index in critique_idxs if index > second_retrieve]
+    assert later_critiques
+    assert state.trace[-1].event == "stop"
+
+
 def test_the_trace_records_every_stage_in_order(tool: RetrieveTool) -> None:
     state = run_research(ANSWERABLE, tool=tool)
 

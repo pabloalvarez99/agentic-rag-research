@@ -1,6 +1,6 @@
 # Golden research dataset
 
-`golden_research.jsonl` contains 17 hand-written cases for the deterministic
+`golden_research.jsonl` contains 18 hand-written cases for the deterministic
 research loop. The cases target the packaged 20-passage Markdown corpus and run
 with the fake backend: no API key, network call, or billed provider is involved.
 
@@ -21,13 +21,15 @@ failed, and `2` means the dataset could not be loaded or validated.
 | `answerable_single_hop` | 4 | One retrieval step should produce grounded evidence and a terminal answer. |
 | `answerable_multi_hop` | 3 | Compound questions exercise planning and evidence gathered across concepts. |
 | `unanswerable` | 4 | Off-corpus questions must refuse with no citations and named gaps. |
-| `thin_evidence` | 2 | Some evidence exists, but it is insufficient for a completed answer. |
+| `thin_evidence` | 3 | Some evidence exists, but it is insufficient for a completed answer — including the critic-can-lose case where notes are present but off-topic. |
 | `budget_stress` | 4 | Paired low/high-budget cases make step consumption and terminal policy observable. |
 
-The 17-case set includes four explicit unanswerable cases and four budget-stress
-cases. Required loader categories are `answerable_multi_hop`, `unanswerable`, and
-`budget_stress`; the two additional slices keep ordinary and thin-evidence paths
-visible in the scorecard.
+The 18-case set includes four explicit unanswerable cases, four budget-stress
+cases, and one critic-discipline case (`critic-notes-exist-not-success`) that
+must refuse when notes exist but do not support the question. Required loader
+categories are `answerable_multi_hop`, `unanswerable`, and `budget_stress`; the
+additional slices keep ordinary, thin-evidence, and critic-can-lose paths visible
+in the scorecard.
 
 ## Record schema
 

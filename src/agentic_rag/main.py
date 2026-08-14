@@ -57,6 +57,11 @@ supports **no claim whatsoever about retrieval or answer quality**. Selecting
 `capability_missing` when there is none — the fixture is never substituted for a backend
 that was asked for explicitly.
 
+Finished runs may be fetched from `GET /v1/runs/{id}` while this process still holds
+them. Download `GET /v1/runs/{id}/run.json` to keep a full artifact after a recycle.
+`POST /v1/runs/compare` diffs two **payloads** (not server ids) — files are the source of
+truth when the in-memory store is empty.
+
 Every response carries `X-Request-ID`, echoed from the caller when it is safe to echo and
 minted otherwise. Every failure is `{"error", "error_type", "request_id"}`.
 """.strip()
