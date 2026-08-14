@@ -223,8 +223,8 @@ will not publish a quality number produced by it.
 ## Portfolio context
 
 This is project 2 in a five-system ladder: P1 retrieves and answers honestly; P2 acts
-with tools under budget; P3 will coordinate specialists; P4 will understand code with
-`path:line` evidence; P5 will operate the services behind a platform edge. The full,
+with tools under budget; P3 coordinates bounded specialists; P4 now answers code questions
+with AST-derived `path:line` evidence; P5 will operate the services behind a platform edge. The full,
 honestly labelled map is in [docs/PORTFOLIO.md](docs/PORTFOLIO.md).
 
 ## License

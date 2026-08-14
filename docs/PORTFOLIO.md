@@ -12,7 +12,7 @@ their implementation.
 | [P1 — production-rag](https://github.com/pabloalvarez99/production-rag) | Can retrieval answer with grounded citations, refuse unsupported questions, and be evaluated offline? | **v0.1.0 LIVE** |
 | **P2 — agentic-rag-research** | What does a bounded plan/retrieve/critique loop add over one retrieval pass, and can every decision be audited? | **M5 LIVE; M6 planned** |
 | P3 — multi-agent-orchestration | How should specialists hand work off under budgets and isolation? | **PLANNED** |
-| P4 — RepoMind | Can a codebase be queried with symbol-aware chunks and `path:line` evidence? | **PLANNED** |
+| [P4 — RepoMind](https://github.com/pabloalvarez99/repomind) | Can a codebase be queried with AST-aware chunks and `path:line` evidence? | **M3 LIVE; CLI/evals planned** |
 | P5 — AI Platform | How are the services operated behind auth, rate limits, routing, and aggregate health? | **PLANNED** |
 
 ## The P1 → P2 boundary
