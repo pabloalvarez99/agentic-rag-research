@@ -41,7 +41,7 @@ def case_payload(**overrides: Any) -> dict[str, Any]:
         "expected_stop_reason": "evidence_sufficient",
         "expected_min_citations": 1,
         "expected_max_citations": 1,
-        "expected_source_paths": ["docs/retrieval.md"],
+        "expected_source_paths": ["fake_corpus/hybrid-retrieval.md"],
         "expected_chunk_ids": ["hybrid-retrieval-1"],
         "expected_min_plan_size": 1,
         "expects_repeated_evidence": False,
@@ -190,7 +190,7 @@ def test_a_source_path_outside_the_corpus_is_rejected() -> None:
 def test_a_chunk_and_source_that_disagree_are_rejected() -> None:
     broken = build_case(
         expected_chunk_ids=["hybrid-retrieval-1"],
-        expected_source_paths=["docs/ingest.md"],
+        expected_source_paths=["fake_corpus/chunking.md"],
     )
     assert "provenance_disagrees" in codes((broken,))
 
@@ -198,7 +198,10 @@ def test_a_chunk_and_source_that_disagree_are_rejected() -> None:
 def test_a_single_source_case_may_not_name_two_documents() -> None:
     broken = build_case(
         expected_chunk_ids=["hybrid-retrieval-1", "chunking-1"],
-        expected_source_paths=["docs/retrieval.md", "docs/ingest.md"],
+        expected_source_paths=[
+            "fake_corpus/hybrid-retrieval.md",
+            "fake_corpus/chunking.md",
+        ],
         expected_max_citations=2,
     )
     assert "slice_mismatch" in codes((broken,))

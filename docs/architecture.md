@@ -1,11 +1,13 @@
-# Architecture — the loop is code, the service around it is not
+# Architecture — a bounded research loop behind three runtime surfaces
 
-Status: **M2**. The only route is still `GET /health`, but everything below the
-route is now implemented: `plan`, `retrieve`, `critique`, the bounded loop that
-calls them, the stop rule, the refusal path, the report with citations, and the
-trace. `run_research()` runs the whole thing in-process on the free path. What is
-still absent is the way in — `POST /v1/research` and the CLI — and the offline
-evaluation. The milestones table says which parts those are.
+Status: **M3 LIVE on `main`**. `plan`, `retrieve`, `critique`, the bounded loop,
+stop rule, refusal path, cited report, and deterministic trace are reachable as a
+library, through `POST /v1/research`, and through a JSON-only CLI. The default
+backend is an in-process fake over committed Markdown. An HTTP adapter for a running
+production-rag service is implemented and opt-in; an end-to-end live-service run is
+not claimed. Draft PR #4 carries a synchronized 66-case golden dataset, its M5
+runner, and a reproducible fixture-contract scorecard; they are not LIVE on
+`main` until that PR merges.
 
 The question this project exists to answer: **what does a bounded agent loop add
 over a single retrieval pass, and how would you tell?** The design below is
@@ -14,7 +16,7 @@ in for, so the loop is measurable before it is expensive.
 
 ## The loop
 
-The agent is a bounded loop over three tools. The bound is the point: an agent
+The agent is a bounded loop over three stages and one outbound tool. The bound is the point: an agent
 without a step budget and a stop rule is a way to spend money on tokens until
 something times out.
 
@@ -66,13 +68,18 @@ Three properties of that shape are deliberate:
 
 ## Tool boundary
 
-| Tool | Responsibility | Boundary it must not cross |
+| Component | Responsibility | Boundary it must not cross |
 | --- | --- | --- |
 | `plan` | Turn the question into an ordered list of sub-questions, each answerable by one retrieval call. | It does not retrieve, and it does not answer from parametric memory. |
 | `retrieve` | Run one sub-question against the retrieval service and return passages with their source ids. | It does not rank by what would make the answer nicer; ranking belongs to the retrieval service. |
 | `critique` | Decide whether the evidence supports an answer, name the gap when it does not, and stop when the budget is spent. | It never fills a gap by inventing a passage. Insufficient evidence ends in a refusal, not a hedge. |
 
-Two rules apply to all three, and they are what make the loop testable rather
+Only `retrieve` is a tool. `plan` and `critique` are deterministic functions under
+the loop's control; no model may reorder them. The full surface, what is deliberately absent from it, and why the retrieval
+service sits behind a *second* protocol rather than inside the tool, are recorded
+in [ADR-0003](adr/0003-tool-boundary.md).
+
+Two rules apply across the three stages, and they are what make the loop testable rather
 than merely describable:
 
 1. **A tool call is a function of its arguments and the retrieval service.** No
@@ -94,7 +101,7 @@ call site:
 - **No sub-agent spawning.** One agent, one loop. Orchestration between agents
   is series project #3 and does not leak backwards into this one.
 
-## The loop as code (M2)
+## The loop as code (M2–M3)
 
 `run_research(question, tool=..., max_steps=..., top_k=...)` in
 `agentic_rag.agent.graph` returns a finished `ResearchState`. The nodes are thin
@@ -127,7 +134,9 @@ labelled set exists yet.
 
 The `insufficient_evidence` refusal exists so the status field cannot lie: a run
 that stopped with steps to spare must not report `budget_exhausted`, which is the
-first field an operator would check when asking why a run was thin.
+first field an operator would check when asking why a run was thin. The same four
+outcomes as a function of the three facts that decide them, alongside the typed
+failures that are *not* outcomes, are in [Failure modes](#failure-modes).
 
 ### Two independent bounds
 
@@ -142,6 +151,22 @@ Termination does not depend on the critic being right:
    shrinks. Without that rule, a gap no retrieval can close would be re-issued
    until the budget ran out, and every thin run would report `budget_exhausted`
    whatever actually stopped it.
+
+Two budgets, bounding two different costs:
+
+| Budget | Bounds | Default | Enforced by |
+| --- | --- | --- | --- |
+| `max_steps` | Retrieval calls one run may make. | 4 | `ResearchState.record_retrieval`, which raises `StepBudgetExceeded` rather than dropping the step. |
+| `top_k` | Passages one retrieval call may return — the context a single step drags back. | 5 | The `retrieve` tool, applied to what the backend returned. |
+
+There is deliberately **no wall-clock and no spend budget** at this milestone.
+`max_steps` bounds the only cost the free path has: the fake backend contacts
+nothing and bills nothing, so a timeout would be dead code and a spend ceiling a
+field that always reads zero. Both are the right bounds the moment the HTTP
+backend runs against a real instance, and they land there, with the failure they
+exist to survive in front of them. The reasoning, the outcome table below, and
+the alternatives rejected on the way are in
+[ADR-0002](adr/0002-step-budget.md).
 
 ### The trace
 
@@ -163,7 +188,7 @@ found nothing.
 
 ### Why there is no graph library yet
 
-LangGraph is the obvious fit and is deliberately not a dependency at M2. Every
+LangGraph is the obvious fit and is deliberately not a dependency at M3. Every
 node here is a two-line call into a pure function that is already tested
 independently; a framework would add a dependency, an import-time registry and a
 second place to read the control flow, in exchange for a picture of a loop that
@@ -187,7 +212,7 @@ class RetrievalBackend(Protocol):
 
 This sits *behind* the `retrieve` tool rather than replacing it: the tool is the
 loop-facing surface, the backend is the outbound one. Both are protocols so a
-test supplies either without a container or a key. As of M1 that shape is code:
+test supplies either without a container or a key. That shape is code:
 `RetrievalBackend` and `RetrieveTool` in `agentic_rag.tools.retrieve`, with the
 backend chosen by `build_retrieve_tool()` — the fake unless `PRODUCTION_RAG_URL`
 is set.
@@ -196,12 +221,12 @@ A `Passage` carries the text, a stable chunk id, and a corpus-relative source
 path — the three fields a citation needs to be checkable by someone who does not
 trust the agent.
 
-Two implementations are planned, and the loop cannot tell them apart:
+Two implementations exist, and the loop cannot tell them apart:
 
 | Backend | What it is | When it is used |
 | --- | --- | --- |
 | `FakeRetrievalBackend` | An in-process fixture over a small committed corpus, deterministic for a given sub-question. | The default. Every test, every CI run, every laptop demo. |
-| `HttpRetrievalBackend` | An HTTP client for a running [production-rag](https://github.com/pabloalvarez99/production-rag) instance. | Opt-in, when a real corpus and real retrieval quality matter. |
+| `HttpRetrievalBackend` | An HTTP client for a running [production-rag](https://github.com/pabloalvarez99/production-rag) instance, covered with a mock HTTP transport. | Opt-in, when a real corpus and real retrieval behavior matter. No live-service result is claimed yet. |
 
 ### Fake first, and what the fake is honest about
 
@@ -303,6 +328,107 @@ from P1's reporting boundary:
   agent that spends five steps and wins nothing has to be publishable as exactly
   that.
 
+## Evaluation boundary
+
+The M5 candidate in draft PR #4 runs 66 fixed questions across six behavior
+slices against the same deterministic 20-passage corpus used by the default
+retriever. It also records a one-pass retrieval baseline. That baseline returns
+retrieved evidence only; it does not generate an answer, so its measurements must
+not be presented as answer-quality or agent-uplift results.
+
+The scorecard separates two kinds of evidence:
+
+- **Hard invariants** fail the command: budgets are respected; the run is
+  terminal; plan/tool/stop trace order is valid; citations resolve to retrieved
+  corpus passages; repeated evidence is deduplicated; gaps are reported; and
+  repeated runs are deterministic.
+- **Descriptive metrics** report agreement with curated case constraints:
+  terminal status and stop reason, citation bounds and marker validity, expected
+  source/chunk coverage, plan expansion, repeated-evidence deduplication,
+  refusal recall, unexpected-refusal rate, trace validity, and the share served
+  entirely by the free fake backend.
+
+Every generated scorecard names the dataset digest, case count, backend, corpus
+size, repeat count, command, and evidence class. Results from the fake backend are
+labelled **fixture-contract**: they demonstrate control-plane behavior, not
+retrieval quality, answer quality, faithfulness, latency, production readiness,
+or superiority over another system. HTTP-backed quality evaluation remains
+optional future evidence and requires a running production-rag service.
+
+## Failure modes
+
+A demo shows the happy path. What a reviewer can actually check is whether the
+failures are named, typed, and reachable — so each one below says what produces
+it, what the caller sees, and whether it exists today.
+
+```mermaid
+stateDiagram-v2
+    [*] --> running
+    running --> done: evidence_sufficient
+    running --> refused: no_evidence
+    running --> refused: insufficient_evidence
+    running --> budget_exhausted: budget_spent
+    running --> degraded: declared, not yet produced
+    done --> [*]
+    refused --> [*]
+    budget_exhausted --> [*]
+    degraded --> [*]
+```
+
+### How a run ends, as a function of three facts
+
+`decide_outcome(sufficient, has_evidence, budget_spent)` in `agent/graph.py` is a
+pure function, so the policy is one table rather than a sequence of branches
+inside a loop body:
+
+| `sufficient` | `has_evidence` | `budget_spent` | Status | Stop reason |
+| --- | --- | --- | --- | --- |
+| yes | — | — | `done` | `evidence_sufficient` |
+| no | no | — | `refused` | `no_evidence` |
+| no | yes | yes | `budget_exhausted` | `budget_spent` |
+| no | yes | no | `refused` | `insufficient_evidence` |
+
+Sufficient evidence answers whatever the budget did: a run that reached its last
+step and *then* found what it needed has succeeded, and reporting the budget
+would be an apology for a correct run.
+
+### Typed failures
+
+| Failure | What produces it | What the caller sees | Today |
+| --- | --- | --- | --- |
+| `no_evidence` | Every sub-question retrieved for came back empty. | `refused`, with the named gaps and no citations. | **Live**, and reachable from the free path. |
+| `insufficient_evidence` | Evidence exists but scores below the threshold, and no follow-up remains that has not already been retrieved for. | `refused`, with the gathered passages still cited. | **Live.** |
+| `budget_spent` | Evidence exists, never became sufficient, and the step budget ran out. | `budget_exhausted`, with the grounded findings **and** the gaps it never closed. | **Live.** |
+| `ToolError` | The retrieval backend was unreachable, answered with an error status, or sent a body the client cannot read. Only the HTTP backend can raise it. | The library call raises. API and CLI translate it to `backend_unavailable` without exposing the configured URL. | **Live**, covered with a mock transport and service-boundary tests. |
+| `StepBudgetExceeded` | A step was recorded past the budget — a defect in a caller, not a runtime condition. | Raised at the line that overspent. | **Live**, and unreachable through `run_research`. |
+| `RunAlreadyFinished` | A finished run was asked to record more work. Same class of defect. | Raised. | **Live**, unreachable through `run_research`. |
+| `degraded` | Reserved for a run that finished *around* a tool failure. | — | **Declared and unused.** |
+
+`degraded` remains declared and unused. A failed HTTP retrieval is not converted into
+an empty result or an evidence-based refusal: the library raises `ToolError`, while the
+API and CLI expose the typed `backend_unavailable` transport failure. Partial recovery
+inside the loop should land only with a policy for which failures are retryable and
+which partial report is safe to return.
+
+### What the free path cannot fail at
+
+Worth stating, because it bounds what a green suite means. On the default path
+there is no network, no credential, no clock in the trace and no non-determinism,
+so there is nothing to time out, nothing to rate-limit, nothing to expire and
+nothing to flake. A test that fails here is a real defect — which is the property
+that makes the suite worth running — but the suite is silent about every failure
+that needs a real service to occur.
+
+### Untrusted input
+
+Retrieved text is input this process did not write. The tool boundary is what
+bounds the damage: the loop can score a passage, cite it, or ignore it, and there
+is no shell, no filesystem, no arbitrary HTTP and no write path for it to reach
+([ADR-0003](adr/0003-tool-boundary.md)). That is a containment argument, not a
+detection one — nothing here inspects a passage for instructions, and nothing
+needs to while no model reads them. A model in the synthesiser changes that, and
+the mitigation lands with it rather than being claimed now.
+
 ## Provider stance
 
 The default providers are deterministic fakes, chosen so a run is repeatable and
@@ -312,34 +438,42 @@ future paid path would use; it carries no values. The reasoning, its rejected
 alternatives, and the conditions under which the paid path opens are in
 [ADR-0001](adr/0001-fake-first.md).
 
+## Decision records
+
+Three decisions here were not obvious, each had a defensible alternative, and each
+would be expensive to reverse once a call site depends on it. They are recorded with
+the alternatives that were rejected and why:
+
+| ADR | Decides | Status |
+| --- | --- | --- |
+| [ADR-0001](adr/0001-fake-first.md) | The free path is the default; the paid path is opt-in and later. What the fake is allowed to prove, and what it is not. | accepted |
+| [ADR-0002](adr/0002-step-budget.md) | The step budget lives in the state; two independent bounds end every run; the stop reason comes from a closed set. | accepted |
+| [ADR-0003](adr/0003-tool-boundary.md) | One read-only tool, behind a protocol, with the retrieval service one seam further out. What is deliberately not a tool. | accepted |
+
 ## Milestones
+
+These names follow the portfolio plan rather than the older internal M0–M7 draft.
 
 | Milestone | Contents | State |
 | --- | --- | --- |
-| M0 | Package, liveness probe, test harness, this document | **LIVE** |
-| M1 | `retrieve` tool over the `RetrievalBackend` seam, with the fake backend, and `ResearchState` carrying the step budget | **LIVE** |
-| M2 | `plan`, the loop, and the step budget it spends | **LIVE** |
-| M3 | `critique`, the stop rule, the refusal path, and the report with citations | **LIVE** |
-| M4 | Trace of the loop: every step, its tool, its evidence, how it ended | **LIVE** |
-| M5 | `POST /v1/research` and a CLI over `run_research()` | planned |
-| M6 | HTTP backend against a running production-rag instance | client written at M1, never yet run against a real instance |
-| M7 | Offline evaluation of the loop against a fixed question set, paired against the single pass | planned |
+| M1 | Read-only retrieve tool, deterministic fake backend, packaged Markdown corpus | **LIVE** |
+| M2 | Plan → retrieve → critique loop, step budget, stop reasons, citations, trace | **LIVE** |
+| M3 | `POST /v1/research`, CLI parity, request ids, typed transport errors | **LIVE** |
+| M4 | Optional production-rag HTTP retriever | **IMPLEMENTED / opt-in**; mock-transport tested, no live-service result claimed |
+| M5 | Golden runner, one-pass baseline, metrics and reproducible scorecard | **READY IN DRAFT PR #4**; 66 synchronized cases, not yet LIVE on `main` |
+| M6 | Release polish and public evidence | **PLANNED**; docs exist, release/tag/demo artifacts do not |
 
-M2 through M4 landed together, because a plan with no critic has no stop rule and
-a stop rule with no trace cannot be audited — shipping them apart would have
-meant publishing a loop that could not say why it stopped.
-
-M1 through M5 need no credential and no running retrieval service. That is the
-ordering the ADR argues for: the loop is complete and measurable on the free
-path before anything is billed.
+M1 through M3 need no credential and no running retrieval service. M4 preserves that
+default: HTTP is selected explicitly, and a missing configuration fails with
+`capability_missing` rather than silently substituting the fake.
 
 ## Open questions
 
 - ~~Where does the step budget live — per question, per run, or both?~~ Answered
-  at M1, provisionally: per run, in `ResearchState`, enforced by the state rather
+  at M2, provisionally: per run, in `ResearchState`, enforced by the state rather
   than by whoever writes the loop — a budget checked at the call site has as many
   rules as it has call sites. Whether a per-sub-question budget is also needed
-  stays open until `plan` exists.
+  stays open until evaluation shows one sub-question can starve the rest.
 - ~~Does `critique` see the retrieved passages, or only the claims made from
   them?~~ Answered at M2: the passages, because at M2 there are no claims — the
   synthesiser selects and marks passages rather than writing prose about them.
@@ -350,14 +484,12 @@ path before anything is billed.
   a *different* sub-question and is allowed; an identical one returns identical
   passages, so paying a step for it is a loop that has stopped making progress.
 - What does the trace have to record for a failed run to be diagnosable a week
-  later without rerunning it? M2 records the plan, every call and result, the
-  full critique arithmetic and the stop reason. Untested against a real
-  diagnosis, because the free path has not yet produced a failure anyone needed
-  to diagnose.
-- What ends a run whose tool *fails*, as opposed to one that finds nothing? The
-  `degraded` status is declared and unused: no free-path tool can fail that way,
-  and inventing the handling before the HTTP backend runs against a real instance
-  would be guessing at the failure it has to survive.
+  later without rerunning it? It records the plan, every call and result, the
+  full critique arithmetic and the stop reason, but it has not yet been tested
+  against a real production-rag incident.
+- What ends a run whose tool *fails*, as opposed to one that finds nothing? Today
+  the runtime surface returns `backend_unavailable`; `degraded` stays unused until
+  there is an explicit partial-recovery policy.
 - The sufficiency threshold is a constant with no evidence behind it. It stops
   runs at a defensible point on the free path and nothing more; it stays
   unjustifiable until the evaluation milestone gives it a question set to be

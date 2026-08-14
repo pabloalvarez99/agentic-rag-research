@@ -42,7 +42,7 @@ def make_case(**overrides: object) -> EvalCase:
         "expected_stop_reason": "evidence_sufficient",
         "expected_min_citations": 1,
         "expected_max_citations": 1,
-        "expected_source_paths": ["docs/retrieval.md"],
+        "expected_source_paths": ["fake_corpus/hybrid-retrieval.md"],
         "expected_chunk_ids": ["hybrid-retrieval-1"],
         "expected_min_plan_size": 1,
         "expects_repeated_evidence": False,

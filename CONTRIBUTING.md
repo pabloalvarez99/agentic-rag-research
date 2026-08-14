@@ -2,8 +2,8 @@
 
 This is a portfolio repository, public so the engineering can be read and run. Bug reports,
 correctness fixes, and documentation corrections are welcome. Before proposing a capability,
-read [docs/architecture.md](docs/architecture.md): the loop is planned in milestones, and
-most of what looks missing is assigned to a later one rather than absent by oversight.
+read [docs/architecture.md](docs/architecture.md): the loop and runtime surfaces are live,
+while evaluation and release work are assigned to later milestones.
 
 Everything below runs on deterministic local providers. No credential, no billed call, no
 signup.
@@ -31,9 +31,9 @@ curl -s http://127.0.0.1:8010/health
 The interactive API document is at <http://127.0.0.1:8010/docs>. Nothing in this path reads
 an environment variable, so there is no `.env` to prepare.
 
-## Run the checks
+## Run the required checks
 
-The same three commands CI runs, in the same order:
+Run these before opening a change:
 
 ```bash
 ruff check .
@@ -41,11 +41,10 @@ mypy --strict
 pytest -q
 ```
 
-CI runs them on Python 3.12 with `OPENAI_API_KEY` set to the empty string, and then starts
-the app and calls `/health` with the same empty value. That is deliberate: if a change makes
-any path require a credential, CI goes red instead of passing on a secret the workflow never
-sets. Keep it that way — a new test must pass with no key, or be marked as an integration
-test that does not run by default.
+The required CI design runs them on Python 3.12 with provider variables empty, then invokes
+the CLI and `/health`. Until that workflow is merged and green on the exact commit, do not
+claim the repository's CI gate is shipped. A new default-path test must pass with no key and
+no network; live-service integration stays opt-in.
 
 ## No secrets, ever
 

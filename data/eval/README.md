@@ -1,7 +1,8 @@
 # Golden dataset — `golden_research.jsonl`
 
 66 questions for the research loop, hand-written in this repository against the
-five-passage retrieval fixture in `agentic_rag.tools.retrieve.DEFAULT_CORPUS`.
+20-passage packaged Markdown fixture exposed as
+`agentic_rag.tools.retrieve.DEFAULT_CORPUS`.
 
 The file is the input to `python -m agentic_rag.evals.run`. Its schema, and every
 integrity rule below, live in `agentic_rag.evals.dataset`.
@@ -13,8 +14,8 @@ integrity rule below, live in `agentic_rag.evals.dataset`.
 | Origin | Written for this repository. No external dataset, benchmark or corpus was copied, adapted or scraped. |
 | Licence | MIT, the repository's licence. There is no third-party licence to honour because there is no third-party content. |
 | Model involvement | The questions and the expectations were composed by hand and cross-checked against a re-derivation of the documented rules. No answer, report or trace produced by the system was copied into the file. |
-| Subject matter | The fixture's own subject: hybrid retrieval, reranking, citations, refusal and chunking. Plus deliberately off-subject questions, which are the point of the refusal slice. |
-| Personal data | None. No question names a person, and the corpus is five paragraphs of prose about retrieval. |
+| Subject matter | The fixture's own subject: hybrid retrieval, reranking, citations, refusal, chunking, bounded agent loops, and multi-hop research. Plus deliberately off-subject questions, which are the point of the refusal slice. |
+| Personal data | None. No question names a person, and the corpus is 20 passages of technical prose committed with the repository. |
 
 ## What a case may and may not say
 
@@ -50,7 +51,7 @@ the file, and a reviewer can check that by reading the rationale against the doc
 |---|---|---|
 | `single_source_answerable` | 14 | One passage answers the question. Pins the ordinary path: retrieve once, clear the sufficiency threshold, cite one passage. |
 | `multi_concept` | 12 | Compound questions the planner splits. Includes three whose first sub-question is deliberately off-corpus, so the loop must reach the second one to answer at all. |
-| `no_evidence_refusal` | 14 | 11 questions no passage touches, which must refuse with `no_evidence`; and 3 that retrieve something too thin to be sufficient, which must refuse with `insufficient_evidence` while budget remains. The pair matters: a run that blames the budget for a shortage of evidence is wrong even though it also stopped. |
+| `no_evidence_refusal` | 14 | 8 questions no passage touches, which must refuse with `no_evidence`; and 6 that retrieve something too thin to be sufficient, which must refuse with `insufficient_evidence` while budget remains. The pair matters: a run that blames the budget for a shortage of evidence is wrong even though it also stopped. |
 | `budget_pressure_partial` | 8 | Budgets too small for the evidence. Must report a partial answer and say the budget ended it. |
 | `duplicate_evidence` | 6 | Both sub-questions retrieve the same passage. Two steps of evidence must remain one citation. |
 | `text_normalization` | 12 | Six pairs differing only in case, whitespace, punctuation, dash or a non-breaking space. Both members must behave identically, on the refusal path as well as the answering one. |
@@ -60,14 +61,12 @@ compare; the group is the unit, not the case.
 
 ### Why the multi-concept slice looks the way it does
 
-Nine of its twelve cases finish in one step. That is not the slice failing to
-bite — the critic scores the evidence against the whole question rather than the
-current sub-question, so a passage that covers the compound question satisfies it
-immediately, and the remaining sub-questions are never retrieved. The slice's
-expectation is therefore about the **plan**, not the step count: `expected_min_plan_size`
-of 2 asserts the planner split the question, which is the documented rule. The
-three off-corpus-first cases exist because they are the ones where the plan has to
-be walked, and they are what would catch a loop that plans and then ignores the plan.
+The critic scores gathered evidence against the whole question rather than only
+the current sub-question. A passage that covers the compound question can satisfy
+the run immediately, so the slice's primary expectation is about the **plan**, not
+a forced step count: `expected_min_plan_size` of 2 asserts that the planner split
+the question. Cases whose first sub-question is deliberately off-corpus force the
+loop to walk the plan and catch an implementation that plans but ignores it.
 
 That asymmetry is a finding about the loop, recorded here rather than smoothed over.
 
@@ -109,3 +108,8 @@ run, so a dataset cannot be quietly shrunk to the cases that pass.
 Never edit an expectation because a run disagreed with it. A disagreement means
 either the rule changed, the loop regressed, or the expectation was wrong — and
 which one it is has to be decided before the file moves.
+
+The current cases were re-derived against the 20-passage corpus after M3 landed.
+`single_source_answerable` cases use `top_k=1` so their one-source contract remains
+meaningful as the corpus grows. The runner records a dataset digest in every
+scorecard, making a result inseparable from the exact JSONL it evaluated.
