@@ -1,12 +1,13 @@
 # Architecture — a bounded research loop behind three runtime surfaces
 
-Status: **M5 LIVE on `main`**. `plan`, `retrieve`, `critique`, the bounded loop,
+Status: **v0.1.0 / M6 LIVE on `main`**. `plan`, `retrieve`, `critique`, the bounded loop,
 stop rule, refusal path, cited report, and deterministic trace are reachable as a
 library, through `POST /v1/research`, and through a JSON-only CLI. The default
 backend is an in-process fake over committed Markdown. An HTTP adapter for a running
 production-rag service is implemented and opt-in; an end-to-end live-service run is
 not claimed. A synchronized 17-case golden dataset and deterministic M5 JSON
-scorecard are merged on `main` and run entirely on the free fake backend.
+scorecard run entirely on the free fake backend. The release also includes the local
+`search_notes` tool and a server-rendered UI with citations, typed failures, and trace timeline.
 
 The question this project exists to answer: **what does a bounded agent loop add
 over a single retrieval pass, and how would you tell?** The design below is
