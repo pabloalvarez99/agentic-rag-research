@@ -10,7 +10,7 @@ import json
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Final, Self
+from typing import Final, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -147,9 +147,15 @@ class ExperimentPack(BaseModel):
     @classmethod
     def load_dir(cls, directory: Path) -> Self:
         """Load and validate a pack directory; recompute compare must match stored."""
-        policy = PackPolicy.model_validate_json((directory / POLICY_NAME).read_text(encoding="utf-8"))
-        left = RunArtifact.model_validate_json((directory / RUN_A_NAME).read_text(encoding="utf-8"))
-        right = RunArtifact.model_validate_json((directory / RUN_B_NAME).read_text(encoding="utf-8"))
+        policy = PackPolicy.model_validate_json(
+            (directory / POLICY_NAME).read_text(encoding="utf-8")
+        )
+        left = RunArtifact.model_validate_json(
+            (directory / RUN_A_NAME).read_text(encoding="utf-8")
+        )
+        right = RunArtifact.model_validate_json(
+            (directory / RUN_B_NAME).read_text(encoding="utf-8")
+        )
         stored_compare = CompareResponse.model_validate_json(
             (directory / COMPARE_NAME).read_text(encoding="utf-8")
         )
@@ -232,7 +238,9 @@ class PackLoadRequest(BaseModel):
 
     @field_validator("experiments", mode="before")
     @classmethod
-    def _none_experiments(cls, value: Any) -> Any:
+    def _none_experiments(
+        cls, value: list[ExperimentRecord] | None
+    ) -> list[ExperimentRecord]:
         return value if value is not None else []
 
 

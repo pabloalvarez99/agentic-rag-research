@@ -8,12 +8,14 @@ is the ledger line for scorecards and experiment packs (docs/SEASON.md).
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from hashlib import sha256
-from typing import Any, Final, Mapping, Self
+from typing import Final, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agentic_rag.agent.state import ResearchState, StopReason
+from agentic_rag.agent.state import ResearchState, StopReason, TraceEvent
+from agentic_rag.api.runs import RunArtifact
 
 DEFAULT_SEED: Final = 0
 """Free-path planner/critic are deterministic; seed 0 is the documented default."""
@@ -95,29 +97,24 @@ class ExperimentRecord(BaseModel):
     @classmethod
     def from_run_artifact(
         cls,
-        artifact: Any,
+        artifact: RunArtifact,
         *,
         seed: int = DEFAULT_SEED,
         pack_hash: str | None = None,
         max_calls: Mapping[str, int] | None = None,
     ) -> Self:
-        """Build a record from a stored or downloaded run artifact.
-
-        ``artifact`` is duck-typed (``RunArtifact``) to avoid an import cycle
-        with :mod:`agentic_rag.api.runs`.
-        """
+        """Build a record from a stored or downloaded run artifact."""
         calls = _tool_calls_from_trace(artifact.trace)
         budget_calls = dict(max_calls) if max_calls is not None else {}
         if TOOL_RETRIEVE not in budget_calls:
             budget_calls[TOOL_RETRIEVE] = artifact.max_steps
-        status = artifact.status.value if hasattr(artifact.status, "value") else str(artifact.status)
         return cls(
             id=artifact.request_id,
             seed=seed,
             question=artifact.question,
             budget=ToolBudget(max_steps=artifact.max_steps, max_calls=budget_calls),
             note_ids=tuple(note.id for note in artifact.notes),
-            status=status,
+            status=artifact.status.value,
             stop_reason=artifact.stop_reason,
             tool_calls=calls,
             pack_hash=pack_hash,
@@ -126,15 +123,13 @@ class ExperimentRecord(BaseModel):
         )
 
 
-def _tool_calls_from_trace(trace: Any) -> dict[str, int]:
+def _tool_calls_from_trace(trace: Iterable[TraceEvent]) -> dict[str, int]:
     """Count tool_call events by tool name."""
     counts: dict[str, int] = {}
     for event in trace:
-        name = getattr(event, "event", None)
-        payload = getattr(event, "payload", None)
-        if name != "tool_call" or not isinstance(payload, dict):
+        if event.event != "tool_call":
             continue
-        tool = payload.get("tool")
+        tool = event.payload.get("tool")
         if isinstance(tool, str) and tool:
             counts[tool] = counts.get(tool, 0) + 1
     return counts
