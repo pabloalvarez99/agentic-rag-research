@@ -26,6 +26,20 @@ Open <http://127.0.0.1:8010/>. The form is pinned to the fake retriever. Its res
 the report, resolved citations, terminal status, retrieval steps used, request id, and full
 trace. Backend failures render a typed page rather than a partial or invented answer.
 
+What the three documented outcomes look like, captured from a running server and
+committed so a reviewer can see them without starting one. Deterministic fake retriever:
+a contract demo, not an answer-quality claim.
+
+| Capture | Outcome |
+| --- | --- |
+| [`ui-done.png`](assets/ui-done.png) | `done` — report, five resolved citations, steps used, request id |
+| [`ui-trace.png`](assets/ui-trace.png) | `done` after a missed first hop, trace expanded through `stop` |
+| [`ui-budget.png`](assets/ui-budget.png) | `budget_exhausted` — partial grounded findings, uncovered terms, `budget_spent` |
+
+Rebuild: `pip install -e ".[docs]"`, `playwright install chromium`,
+`python scripts/capture_ui.py`. `--verify` compares SHA-256 digests against the committed
+files instead of overwriting them.
+
 The CLI remains a script-friendly path:
 
 ```bash
@@ -47,6 +61,7 @@ The CLI remains a script-friendly path:
 | Golden evaluation and scorecard | **LIVE** | 17 cases across five slices |
 | Research UI and typed failures | **LIVE** | UI route/tests and real-server CI smoke |
 | Local `search_notes` | **LIVE (optional)** | critic request, tool/trace tests; no provider |
+| Committed UI captures | **LIVE** | three PNGs in `docs/assets`; `scripts/capture_ui.py`, byte-identical on re-run |
 
 ## What CI proves on the release commit
 

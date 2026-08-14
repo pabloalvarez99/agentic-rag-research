@@ -51,6 +51,7 @@ report, citations, terminal status, request id, steps used, and expandable trace
 | Research UI and typed HTML failures | **LIVE** | `/`, `/ui/research`, UI tests, and CI smoke |
 | Local `search_notes` tool | **LIVE (optional)** | critic request, deterministic tool tests, trace events |
 | Tagged release | **LIVE** | [v0.1.0 notes](docs/releases/v0.1.0.md); no hosted demo claimed |
+| UI captures of the three outcomes | **LIVE** | [committed PNGs](#what-that-looks-like-before-you-run-it) rebuilt by `scripts/capture_ui.py` |
 
 Start with the [architecture](docs/architecture.md), read the one-page
 [ship truth](docs/SHIP.md), or use the [case study](docs/CASESTUDY.md) as the
@@ -187,6 +188,35 @@ curl -s http://127.0.0.1:8010/v1/research \
   -d '{"question":"Why use reciprocal rank fusion?","retriever":"fake"}'
 ```
 
+### What that looks like before you run it
+
+Every image below is a real run of the command above, captured from the running
+application by [`scripts/capture_ui.py`](scripts/capture_ui.py). **Deterministic fake
+retriever. Contract demo, not answer quality.**
+
+**A grounded answer.** Terminal status, retrieval steps spent, and one citation per
+marker — each resolving to a passage the run actually retrieved — plus the request id
+that correlates the page with the server log.
+
+![The research UI after a run that finished with status done: a five-marker report, five resolved citations, and the request id in the footer](docs/assets/ui-done.png)
+
+**The trace, expanded.** A two-hop question whose first sub-question retrieves nothing.
+The timeline shows `plan_created`, both `tool_call`/`tool_result` pairs, the `critique`
+arithmetic that decided to continue, `synthesize`, and the `stop` event carrying the
+status, the reason, and the budget.
+
+![The expanded trace timeline of a two-hop run, showing plan creation, two retrieval steps, critique, synthesis, and the terminal stop event](docs/assets/ui-trace.png)
+
+**A budget that ran out.** One retrieval step, evidence that never became sufficient:
+the run reports its grounded finding *and* the terms no passage covered, and stops with
+`budget_spent` rather than answering past its evidence.
+
+![A run that ended with status budget_exhausted after one step, showing the partial grounded report, the uncovered terms, and the stop event with reason budget_spent](docs/assets/ui-budget.png)
+
+Rebuild them with `pip install -e ".[docs]"`, `playwright install chromium`, then
+`python scripts/capture_ui.py`; `python scripts/capture_ui.py --verify` re-captures into
+a temporary directory and compares SHA-256 digests against the committed files.
+
 ## How it uses series #1
 
 The loop depends on one interface with a single `search` method, and cannot tell its
@@ -236,6 +266,7 @@ will not publish a quality number produced by it.
 | `src/agentic_rag/evals/`, `data/eval/` | Offline evaluation runner and committed golden research cases. |
 | `tests/` | Offline tests. No network, no credentials. |
 | `data/eval/` | 17 hand-written goldens, schema, and curation rules for the M5 runner. |
+| `scripts/capture_ui.py`, `docs/assets/` | Deterministic Playwright capture of the three UI outcomes, and the committed PNGs it writes. |
 | `docs/architecture.md` | Implemented loop, tool boundaries, retrieval seam, budgets, failures, and milestones. |
 | `docs/adr/` | Three accepted decision records with alternatives and consequences. |
 | `docs/SHIP.md` | One-page LIVE/PLANNED truth, release gate, and failure demos. |
