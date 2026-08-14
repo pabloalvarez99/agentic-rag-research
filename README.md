@@ -1,8 +1,12 @@
 # agentic-rag-research
 
+> Production-shaped AI systems: free-path demos, real architecture, measurable behavior,
+> honest scope.
+
 An agentic RAG research agent: a bounded **plan → retrieve → critique** loop over a
-retrieval service, built so the whole path runs on deterministic local providers.
-No credential, no billed call, no signup.
+retrieval service, with cited reports, explicit refusal, step budgets, and a complete
+execution trace. The whole default path runs on deterministic local providers: **$0,
+no API key, no signup, no network.**
 
 Portfolio series #2. Series #1 is
 [production-rag](https://github.com/pabloalvarez99/production-rag), which builds the
@@ -13,7 +17,7 @@ re-litigate those decisions and does not reimplement that retrieval stack; it co
 it and asks the next question: **what does an agent add over a single retrieval pass,
 and how do you tell?**
 
-## Status: M3 — the loop is reachable
+## Status: M3 LIVE — the loop is reachable
 
 The loop is complete as a library and exposed through both runtime surfaces:
 `plan → retrieve → critique`, bounded by a step budget, ending in a report whose every
@@ -21,6 +25,22 @@ marker resolves to a passage that was actually retrieved — or in an explicit r
 `GET /health` and `POST /v1/research` are live, and so is the CLI, whose stdout is one
 JSON object ([docs/architecture.md](docs/architecture.md)). Nothing here reads an API
 key, and the default path contacts nothing.
+
+| Capability | State | Evidence |
+| --- | --- | --- |
+| Plan → retrieve → critique, bounded by `max_steps` | **LIVE** | loop and state tests |
+| Grounded report, refusal, and stop reasons | **LIVE** | synthesizer and terminal-outcome tests |
+| Full deterministic execution trace | **LIVE** | six typed events ending in `stop` |
+| FastAPI `POST /v1/research` and JSON CLI | **LIVE** | OpenAPI, API/CLI parity, and error tests |
+| Fake retriever over packaged Markdown | **LIVE** | default, offline, credential-free |
+| production-rag HTTP adapter | **LIVE (opt-in)** | mock HTTP transport; no live-service result claimed |
+| 17-case golden dataset | **LIVE as data** | [schema and coverage](data/eval/README.md) |
+| Eval runner and scorecard | **PLANNED (M5)** | not present on `main` |
+| Tagged release / hosted demo | **PLANNED (M6)** | not claimed |
+
+Start with the [architecture](docs/architecture.md), read the one-page
+[ship truth](docs/SHIP.md), or use the [case study](docs/CASESTUDY.md) as the
+problem/options/decision narrative.
 
 ```console
 $ python -m agentic_rag.research --question "Why use RRF in hybrid search?" --retriever fake
@@ -118,14 +138,17 @@ included, which is what lets a test assert on one. Tool boundaries, the scoring 
 the trace's event set, and why there is no graph library yet are in
 [docs/architecture.md](docs/architecture.md).
 
-## Hello, free path (no keys)
+## Try it free — $0, no API key
 
-Requires Python 3.12+.
+Requires Python 3.12+. Commands below use the Windows venv layout; on macOS or
+Linux replace `.venv/Scripts` with `.venv/bin`.
 
 ```bash
 python -m venv .venv
-.venv/Scripts/pip install -e ".[dev]"   # macOS or Linux: .venv/bin/pip
-.venv/Scripts/pytest
+.venv/Scripts/pip install -e ".[dev]"
+.venv/Scripts/pytest -q
+.venv/Scripts/python -m agentic_rag.research \
+  --question "Why use reciprocal rank fusion?" --retriever fake
 .venv/Scripts/uvicorn agentic_rag.main:app --port 8010
 curl -s http://127.0.0.1:8010/health
 ```
@@ -136,7 +159,13 @@ curl -s http://127.0.0.1:8010/health
 
 The interactive API document is at <http://127.0.0.1:8010/docs>.
 
-## How it will use series #1
+```bash
+curl -s http://127.0.0.1:8010/v1/research \
+  -H "content-type: application/json" \
+  -d '{"question":"Why use reciprocal rank fusion?","retriever":"fake"}'
+```
+
+## How it uses series #1
 
 The loop depends on one interface with a single `search` method, and cannot tell its
 two implementations apart:
@@ -144,7 +173,12 @@ two implementations apart:
 | Backend | What it is | When |
 | --- | --- | --- |
 | Fake | In-process fixture over the markdown corpus shipped in the package (`agentic_rag/data/fake_corpus/`), deterministic per sub-question | The default — every test, every CI run, every laptop demo |
-| HTTP | Client for a running production-rag instance, `POST /v1/query` | Opt-in, when a real corpus and real retrieval quality matter |
+| HTTP | Client for a running production-rag instance, `POST /v1/query` | Opt-in; mock-transport tested, no live-service result claimed |
+
+Set `PRODUCTION_RAG_URL` and explicitly choose `retriever=http` to use the HTTP
+backend. Without that explicit choice, retrieval stays in-process. If HTTP is requested
+without configuration, the runtime returns `capability_missing`; it never falls back
+silently and labels fake evidence as real-service output.
 
 The HTTP backend reads the `citations` array — each entry is already a passage with a
 chunk id and a source path — rather than the inner service's generated answer, because
@@ -173,13 +207,23 @@ will not publish a quality number produced by it.
 
 | Path | What lives there |
 | --- | --- |
-| `src/agentic_rag/` | The package. Today: the app factory, the liveness probe, and the tokeniser the fixture and the critic share. |
+| `src/agentic_rag/` | App factory, API/CLI service boundary, deterministic agent loop, corpus loader, and shared text rules. |
 | `src/agentic_rag/tools/` | The tool protocol, the `retrieve` tool, and its two backends. |
 | `src/agentic_rag/agent/` | The loop: `state` (budget, evidence, trace), `planner`, `critic`, `synthesizer`, `graph`. |
 | `tests/` | Offline tests. No network, no credentials. |
-| `docs/architecture.md` | The planned loop, its tool boundaries, the retrieval seam, and the milestones. |
-| `docs/adr/` | Decision records. [ADR-0001](docs/adr/0001-fake-first.md): why the free path is the default. |
-| `.env.example` | Variable names for the opt-in paths: a running retrieval service, a hosted provider. Never values. |
+| `data/eval/` | Hand-written goldens and their schema; the runner remains M5. |
+| `docs/architecture.md` | Implemented loop, tool boundaries, retrieval seam, budgets, failures, and milestones. |
+| `docs/adr/` | Three accepted decision records with alternatives and consequences. |
+| `docs/SHIP.md` | One-page LIVE/PLANNED truth, release gate, and failure demos. |
+| `docs/PORTFOLIO.md` | P1 → P5 series narrative and ownership boundary. |
+| `.env.example` | Variable names for opt-in paths. Never values. |
+
+## Portfolio context
+
+This is project 2 in a five-system ladder: P1 retrieves and answers honestly; P2 acts
+with tools under budget; P3 will coordinate specialists; P4 will understand code with
+`path:line` evidence; P5 will operate the services behind a platform edge. The full,
+honestly labelled map is in [docs/PORTFOLIO.md](docs/PORTFOLIO.md).
 
 ## License
 
