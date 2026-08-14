@@ -38,6 +38,9 @@ dependencies = [
     "uvicorn[standard]>=0.32",
 ]
 
+[project.scripts]
+agentic-rag-research = "agentic_rag.research:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
