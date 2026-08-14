@@ -61,6 +61,13 @@ jobs:
           done
           response=$(curl --fail --silent http://127.0.0.1:8010/health)
           RESPONSE="$response" python -c 'import json, os; payload=json.loads(os.environ["RESPONSE"]); assert payload["status"] == "ok", payload'
+          page=$(curl --fail --silent http://127.0.0.1:8010/)
+          PAGE="$page" python -c 'import os; page=os.environ["PAGE"]; assert "Demo mode (free / deterministic)" in page; assert "Research a question" in page'
+          result=$(curl --fail --silent \
+            --data-urlencode 'question=Why do bounded research agents need explicit stop reasons?' \
+            --data 'max_steps=4' \
+            http://127.0.0.1:8010/ui/research)
+          RESULT="$result" python -c 'import os; page=os.environ["RESULT"]; assert "Trace timeline" in page; assert "Request ID" in page; assert "Citations" in page'
 
       - name: Show the API log after a failure
         if: failure()

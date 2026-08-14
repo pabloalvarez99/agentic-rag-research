@@ -461,11 +461,13 @@ These names follow the portfolio plan rather than the older internal M0–M7 dra
 | M3 | `POST /v1/research`, CLI parity, request ids, typed transport errors | **LIVE** |
 | M4 | Optional production-rag HTTP retriever | **IMPLEMENTED / opt-in**; mock-transport tested, no live-service result claimed |
 | M5 | Golden runner and deterministic JSON behavioral scorecard | **LIVE**; 17 synchronized cases over five slices |
-| M6 | Release polish and public evidence | **PLANNED**; [release notes](releases/v0.1.0.md) are draft, and no tag or hosted demo is claimed |
+| M6 | Accessible free-path UI, local `search_notes`, SHIP, changelog, and v0.1.0 notes | **LIVE** |
 
-M1 through M3 need no credential and no running retrieval service. M4 preserves that
-default: HTTP is selected explicitly, and a missing configuration fails with
-`capability_missing` rather than silently substituting the fake.
+M1 through M6 need no credential and no running retrieval service. That is the
+ordering the ADR argues for: the loop is complete and measurable on the free
+path before anything is billed. M4 preserves that default: HTTP is selected explicitly,
+and missing configuration fails with `capability_missing` rather than silently substituting
+the fake.
 
 ## Open questions
 

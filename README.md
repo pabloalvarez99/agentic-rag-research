@@ -17,14 +17,18 @@ re-litigate those decisions and does not reimplement that retrieval stack; it co
 it and asks the next question: **what does an agent add over a single retrieval pass,
 and how do you tell?**
 
-## Status: M5 LIVE — the loop is measurable offline
+## Status: v0.1.0 — M1–M6 live on the free path
 
 The loop is complete as a library and exposed through both runtime surfaces:
 `plan → retrieve → critique`, bounded by a step budget, ending in a report whose every
 marker resolves to a passage that was actually retrieved — or in an explicit refusal.
-`GET /health` and `POST /v1/research` are live, and so is the CLI, whose stdout is one
-JSON object ([docs/architecture.md](docs/architecture.md)). Nothing here reads an API
-key, and the default path contacts nothing.
+`GET /health`, `POST /v1/research`, the CLI, the offline evaluation harness, and the
+server-rendered research UI are live ([docs/SHIP.md](docs/SHIP.md)). The optional HTTP
+retriever can call a running production-rag instance, but the default path contacts
+nothing and reads no API key.
+
+**Open <http://127.0.0.1:8010/> for the free UI.** Submit a question and inspect the
+report, citations, terminal status, request id, steps used, and expandable trace timeline.
 
 | Capability | State | Evidence |
 | --- | --- | --- |
@@ -36,7 +40,9 @@ key, and the default path contacts nothing.
 | production-rag HTTP adapter | **LIVE (opt-in)** | mock HTTP transport; no live-service result claimed |
 | 17-case golden dataset | **LIVE** | five behavior slices; [schema and coverage](data/eval/README.md) |
 | Deterministic eval runner and JSON scorecard | **LIVE** | terminal behavior, steps, citations, sources, and gaps |
-| Tagged release / hosted demo | **PLANNED (M6)** | [v0.1.0 notes are draft only](docs/releases/v0.1.0.md) |
+| Research UI and typed HTML failures | **LIVE** | `/`, `/ui/research`, UI tests, and CI smoke |
+| Local `search_notes` tool | **LIVE (optional)** | critic request, deterministic tool tests, trace events |
+| Tagged release | **LIVE** | [v0.1.0 notes](docs/releases/v0.1.0.md); no hosted demo claimed |
 
 Start with the [architecture](docs/architecture.md), read the one-page
 [ship truth](docs/SHIP.md), or use the [case study](docs/CASESTUDY.md) as the
@@ -62,8 +68,14 @@ state.steps_taken    # 1 of a budget of 4
 state.evidence_ids   # ('hybrid-retrieval-1', 'hybrid-retrieval-2', ...)
 [c.marker for c in state.citations]     # [1, 2, 3, 4, 5]
 [e.event for e in state.trace]
-# ['plan_created', 'tool_call', 'tool_result', 'critique', 'synthesize', 'stop']
+# ['plan_created', 'tool_call', 'tool_result', 'critique',
+#  'tool_call', 'tool_result', 'synthesize', 'stop']
 ```
+
+The second call is `search_notes`: when several passages are already sufficient, the
+critic may ask a deterministic in-process tool to rank those gathered notes before
+synthesis. It cannot retrieve, generate, or contact a provider, and it only runs when
+retrieval capacity remains.
 
 ```text
 Question: What does hybrid retrieval buy over dense retrieval alone?
@@ -157,7 +169,9 @@ curl -s http://127.0.0.1:8010/health
 {"status": "ok", "service": "agentic-rag-research", "version": "0.1.0"}
 ```
 
-The interactive API document is at <http://127.0.0.1:8010/docs>.
+The research UI is at <http://127.0.0.1:8010/> and the interactive API document is at
+<http://127.0.0.1:8010/docs>. The UI fixes `retriever=fake`; there is no form control
+that can turn the free demo into a provider call.
 
 ```bash
 curl -s http://127.0.0.1:8010/v1/research \
@@ -208,15 +222,17 @@ will not publish a quality number produced by it.
 | Path | What lives there |
 | --- | --- |
 | `src/agentic_rag/` | App factory, API/CLI service boundary, deterministic agent loop, corpus loader, and shared text rules. |
-| `src/agentic_rag/tools/` | The tool protocol, the `retrieve` tool, and its two backends. |
+| `src/agentic_rag/tools/` | The tool protocol, `retrieve` with fake/HTTP backends, and deterministic in-process `search_notes`. |
 | `src/agentic_rag/agent/` | The loop: `state` (budget, evidence, trace), `planner`, `critic`, `synthesizer`, `graph`. |
+| `src/agentic_rag/templates/`, `static/` | Accessible dark UI for the free research path and typed failures. |
+| `src/agentic_rag/evals/`, `data/eval/` | Offline evaluation runner and committed golden research cases. |
 | `tests/` | Offline tests. No network, no credentials. |
 | `data/eval/` | 17 hand-written goldens, schema, and curation rules for the M5 runner. |
 | `docs/architecture.md` | Implemented loop, tool boundaries, retrieval seam, budgets, failures, and milestones. |
 | `docs/adr/` | Three accepted decision records with alternatives and consequences. |
 | `docs/SHIP.md` | One-page LIVE/PLANNED truth, release gate, and failure demos. |
-| `CHANGELOG.md` | M1–M5 history and the explicit no-tag release boundary. |
-| `docs/releases/v0.1.0.md` | Draft release notes; not evidence that a release exists. |
+| `CHANGELOG.md` | Keep-a-Changelog history for v0.1.0. |
+| `docs/releases/v0.1.0.md` | Honest release notes and evidence boundary. |
 | `docs/PORTFOLIO.md` | P1 → P5 series narrative and ownership boundary. |
 | `.env.example` | Variable names for opt-in paths. Never values. |
 
@@ -226,6 +242,9 @@ This is project 2 in a five-system ladder: P1 retrieves and answers honestly; P2
 with tools under budget; P3 coordinates bounded specialists; P4 now answers code questions
 with AST-derived `path:line` evidence; P5 will operate the services behind a platform edge. The full,
 honestly labelled map is in [docs/PORTFOLIO.md](docs/PORTFOLIO.md).
+
+Release history is in [CHANGELOG.md](CHANGELOG.md); the release-facing boundary is in
+[docs/SHIP.md](docs/SHIP.md).
 
 ## License
 

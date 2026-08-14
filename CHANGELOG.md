@@ -1,28 +1,44 @@
 # Changelog
 
-All notable changes to this project will be documented in this file. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version tags will follow
-semantic versioning once the first release is published.
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-13
+
 ### Added
 
-- A deterministic plan → retrieve → critique research loop with explicit step budgets,
-  terminal statuses, stop reasons, grounded reports, refusals, and a complete typed trace.
-- FastAPI `POST /v1/research`, `GET /health`, and a JSON CLI with request-id and transport
-  parity.
-- A credential-free retriever over 20 packaged Markdown passages.
-- An opt-in HTTP adapter for `production-rag`, with a versioned response contract, bounded
-  payloads, URL safety checks, and typed configuration/transport failures.
+- A deterministic plan → retrieve → critique → synthesize loop with retrieval budgets,
+  terminal statuses, stop reasons, grounded citations, refusal, and a complete trace.
+- A typed retrieve tool over 20 packaged Markdown passages, plus an opt-in HTTP adapter
+  for production-rag with bounded contracts, URL safety, and typed failures.
+- `POST /v1/research`, `GET /health`, and a JSON CLI sharing one `ResearchService` and
+  request-id policy.
 - A 17-case offline golden dataset and deterministic JSON scorecard covering single-hop,
   multi-hop, unanswerable, thin-evidence, and budget-stress behavior.
-- Architecture documentation, three ADRs, ship notes, a case study, security guidance, and
-  the draft [v0.1.0 release notes](docs/releases/v0.1.0.md).
+- A server-rendered research UI at `/` showing report, citations, status, retrieval steps,
+  request id, and an expandable trace timeline.
+- A deterministic `search_notes` tool requested by the critic to inspect evidence already
+  gathered; it never retrieves, generates, or contacts a provider.
+- Architecture documentation, three ADRs, ship notes, a case study, security guidance,
+  typed JSON/HTML failures, and CI free-path smokes.
 
-### Release status
+### Security
 
-The package metadata currently reports `0.1.0`, but no `v0.1.0` Git tag or GitHub release
-is claimed. The release remains an M6 action gated by CI on the exact release commit.
+- The default retriever, planner, critic, synthesizer, notes tool, UI, and evaluation path
+  require no API key and make no provider call.
+- The optional HTTP retriever must be selected explicitly and never silently substitutes
+  fake evidence after a real backend was requested.
 
-[Unreleased]: https://github.com/pabloalvarez99/agentic-rag-research/commits/main
+### Known limitations
+
+- Fake-provider results validate determinism, contracts, budgets, traces, and refusal;
+  they do not establish hosted retrieval, answer quality, or agent uplift.
+- There is no hosted demo, streaming, authentication, rate limiting, model-based planning,
+  arbitrary web/write tool, or multi-agent orchestration in this release.
+
+[Unreleased]: https://github.com/pabloalvarez99/agentic-rag-research/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/pabloalvarez99/agentic-rag-research/releases/tag/v0.1.0
