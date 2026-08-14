@@ -75,9 +75,16 @@ def test_both_backends_satisfy_the_retrieval_boundary() -> None:
 # --- the fake backend -------------------------------------------------------
 
 
-def test_the_committed_corpus_has_a_handful_of_distinct_passages() -> None:
-    assert 3 <= len(DEFAULT_CORPUS) <= 5
+def test_the_committed_corpus_spans_several_documents_with_distinct_passages() -> None:
+    assert len(DEFAULT_CORPUS) >= 5
     assert len({document.chunk_id for document in DEFAULT_CORPUS}) == len(DEFAULT_CORPUS)
+    assert len({document.source_path for document in DEFAULT_CORPUS}) >= 5
+
+
+def test_every_committed_passage_carries_what_a_citation_needs() -> None:
+    assert all(document.text.strip() for document in DEFAULT_CORPUS)
+    assert all(document.source_path.endswith(".md") for document in DEFAULT_CORPUS)
+    assert all(document.heading_path for document in DEFAULT_CORPUS)
 
 
 def test_an_on_topic_question_returns_the_passage_that_overlaps_it_first() -> None:

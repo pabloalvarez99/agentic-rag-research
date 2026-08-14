@@ -13,14 +13,23 @@ re-litigate those decisions and does not reimplement that retrieval stack; it co
 it and asks the next question: **what does an agent add over a single retrieval pass,
 and how do you tell?**
 
-## Status: M2 — the loop runs
+## Status: M3 — the loop is reachable
 
-`GET /health` is still the only route, but the loop underneath it is complete as a
-library: `plan → retrieve → critique`, bounded by a step budget, ending in a report
-whose every marker resolves to a passage that was actually retrieved — or in an explicit
-refusal. `POST /v1/research` and the CLI are **not implemented** and are the next
-milestone ([docs/architecture.md](docs/architecture.md)). Nothing here reads an API key,
-and the default path contacts nothing.
+The loop is complete as a library and exposed through both runtime surfaces:
+`plan → retrieve → critique`, bounded by a step budget, ending in a report whose every
+marker resolves to a passage that was actually retrieved — or in an explicit refusal.
+`GET /health` and `POST /v1/research` are live, and so is the CLI, whose stdout is one
+JSON object ([docs/architecture.md](docs/architecture.md)). Nothing here reads an API
+key, and the default path contacts nothing.
+
+```console
+$ python -m agentic_rag.research --question "Why use RRF in hybrid search?" --retriever fake
+{"status": "done", "report": "...", "citations": [...], "steps_used": 1, "trace": [...], ...}
+status=done steps_used=1 citations=5 retriever=fake request_id=54e7dfaf-…
+```
+
+The JSON goes to stdout and the one-line summary to stderr, so `… | jq` works without
+a flag. The same run as a library call:
 
 ```python
 from agentic_rag.agent import run_research
@@ -30,8 +39,8 @@ state = run_research("What does hybrid retrieval buy over dense retrieval alone?
 state.status         # <ResearchStatus.DONE: 'done'>
 state.stop_reason    # 'evidence_sufficient'
 state.steps_taken    # 1 of a budget of 4
-state.evidence_ids   # ('hybrid-retrieval-1', 'reranking-1')
-[c.marker for c in state.citations]     # [1, 2]
+state.evidence_ids   # ('hybrid-retrieval-1', 'hybrid-retrieval-2', ...)
+[c.marker for c in state.citations]     # [1, 2, 3, 4, 5]
 [e.event for e in state.trace]
 # ['plan_created', 'tool_call', 'tool_result', 'critique', 'synthesize', 'stop']
 ```
@@ -44,8 +53,8 @@ Findings, each one a retrieved passage:
 - Hybrid retrieval runs a dense vector search and a sparse keyword search over the
   same corpus and fuses the two rankings with reciprocal rank fusion, so a query that
   only one of them understands still returns evidence. [1]
-- A cross-encoder reranker reads the query and a candidate passage together and
-  reorders the shortlist. [2]
+- Reciprocal rank fusion scores a document by the sum of `1 / (k + rank)` across the
+  rankings it appears in, with k around sixty. [2]
 ```
 
 Ask it something the corpus cannot answer and it says so, naming what it looked for:
@@ -134,7 +143,7 @@ two implementations apart:
 
 | Backend | What it is | When |
 | --- | --- | --- |
-| Fake | In-process fixture over a small committed corpus, deterministic per sub-question | The default — every test, every CI run, every laptop demo |
+| Fake | In-process fixture over the markdown corpus shipped in the package (`agentic_rag/data/fake_corpus/`), deterministic per sub-question | The default — every test, every CI run, every laptop demo |
 | HTTP | Client for a running production-rag instance, `POST /v1/query` | Opt-in, when a real corpus and real retrieval quality matter |
 
 The HTTP backend reads the `citations` array — each entry is already a passage with a
