@@ -24,6 +24,13 @@ from agentic_rag.tools.http_p1 import (
     HttpRetrievalBackend,
     RemoteQueryOutcome,
 )
+from agentic_rag.tools.lexicon import (
+    DEFAULT_LEXICON_LIMIT,
+    LexiconEntry,
+    LexiconRequest,
+    LexiconResult,
+    LexiconTool,
+)
 from agentic_rag.tools.p1_contract import EvidenceState
 from agentic_rag.tools.retrieve import (
     DEFAULT_CORPUS,
@@ -36,13 +43,6 @@ from agentic_rag.tools.retrieve import (
     RetrieveResult,
     RetrieveTool,
     build_retrieve_tool,
-)
-from agentic_rag.tools.lexicon import (
-    DEFAULT_LEXICON_LIMIT,
-    LexiconEntry,
-    LexiconRequest,
-    LexiconResult,
-    LexiconTool,
 )
 from agentic_rag.tools.search_notes import (
     DEFAULT_NOTES_LIMIT,
