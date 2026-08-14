@@ -17,22 +17,57 @@ from agentic_rag.tools import Passage
 CLAIM = "Hybrid retrieval fuses a lexical ranking with a dense one."
 
 
-def passage(chunk_id: str = "hybrid-1", text: str = CLAIM, rank: int = 1) -> Passage:
-    return Passage(chunk_id=chunk_id, source_path="docs/hybrid.md", text=text, rank=rank)
+def passage(
+    chunk_id: str = "hybrid-1",
+    text: str = CLAIM,
+    rank: int = 1,
+    heading_path: str | None = "Hybrid retrieval > Fusion",
+) -> Passage:
+    return Passage(
+        chunk_id=chunk_id,
+        source_path="docs/hybrid.md",
+        text=text,
+        rank=rank,
+        title="Hybrid retrieval",
+        heading_path=heading_path,
+    )
 
 
 # --- the value type ---------------------------------------------------------
 
 
-def test_a_note_carries_the_four_things_an_auditor_asks_for() -> None:
+def test_a_note_carries_what_an_auditor_asks_for() -> None:
     note = note_from_passage(passage(), position=1)
 
     assert note is not None
     assert note.id == "note-1"
     assert note.claim == CLAIM
     assert note.source == "docs/hybrid.md"
+    assert note.context == "Hybrid retrieval > Fusion"
     assert note.citation == "hybrid-1"
     assert note.is_grounded
+
+
+def test_a_note_is_scored_on_its_claim_and_the_headings_it_sits_under() -> None:
+    """A corpus states its subject in headings and drops it from the prose beneath."""
+    note = note_from_passage(
+        passage(text="A marker resolving to nothing is dropped.", heading_path="Citations"),
+        position=1,
+    )
+
+    assert note is not None
+    assert "citations" in note.terms
+    assert "citations" not in note.claim.lower()
+
+
+def test_a_passage_with_no_headings_falls_back_to_its_title_then_to_nothing() -> None:
+    titled = note_from_passage(passage(heading_path=None), position=1)
+    bare = note_from_passage(
+        Passage(chunk_id="x-1", source_path="docs/x.md", text=CLAIM, rank=1), position=1
+    )
+
+    assert titled is not None and titled.context == "Hybrid retrieval"
+    assert bare is not None and bare.context is None
 
 
 def test_a_note_cannot_be_edited_after_it_is_written() -> None:
@@ -108,6 +143,7 @@ def test_writing_a_note_mints_its_id_and_traces_it() -> None:
         "id": "note-1",
         "claim": CLAIM,
         "source": "docs/hybrid.md",
+        "context": None,
         "citation": "hybrid-1",
         "grounded": True,
     }

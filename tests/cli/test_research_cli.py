@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -341,7 +342,21 @@ def test_two_identical_runs_differ_only_in_their_request_id() -> None:
 
 
 def module_run(*argv: str, cwd: Path) -> subprocess.CompletedProcess[str]:
-    """Run the CLI as a module in a subprocess, from ``cwd``."""
+    """Run the CLI as a module in a subprocess, from ``cwd``.
+
+    The child inherits the interpreter's site-packages so dependencies resolve the same
+    way CI and a local install do. App configuration that would select a live retriever
+    is stripped: these tests prove the free path, and a developer's shell
+    ``PRODUCTION_RAG_URL`` must not change that.
+    """
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {PRODUCTION_RAG_URL_ENV, "RUN_P1_INTEGRATION"}
+    }
+    src = str(Path(__file__).resolve().parents[2] / "src")
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = src if not existing else f"{src}{os.pathsep}{existing}"
     return subprocess.run(
         [sys.executable, "-m", "agentic_rag.research", *argv],
         capture_output=True,
@@ -349,7 +364,7 @@ def module_run(*argv: str, cwd: Path) -> subprocess.CompletedProcess[str]:
         encoding="utf-8",
         cwd=cwd,
         check=False,
-        env={"PATH": "", "SYSTEMROOT": "C:\\Windows"},
+        env=env,
     )
 
 

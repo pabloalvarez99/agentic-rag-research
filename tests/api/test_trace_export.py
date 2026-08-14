@@ -110,18 +110,28 @@ def test_a_backend_failure_exports_nothing_and_says_so_without_leaking() -> None
     assert leaked not in response.text
 
 
-def test_the_result_page_offers_the_download(client: TestClient) -> None:
-    page = client.post("/ui/research", data={"question": ANSWERABLE, "max_steps": "4"})
+def test_the_result_page_offers_the_stored_run_download(client: TestClient) -> None:
+    page = client.post(
+        "/ui/research",
+        data={"question": ANSWERABLE, "max_steps": "4"},
+        headers={REQUEST_ID_HEADER: "ui-download"},
+    )
 
-    assert "Download trace (JSON)" in page.text
-    assert f'action="{TRACE_DOWNLOAD_PATH}"' in page.text
+    assert page.status_code == 200
+    assert "Download stored trace (JSON)" in page.text
+    assert 'href="/v1/runs/ui-download/trace.json"' in page.text
 
 
-def test_the_browser_download_is_the_trace_the_page_rendered(client: TestClient) -> None:
-    form = {"question": ANSWERABLE, "max_steps": "4"}
+def test_the_browser_download_is_the_trace_the_page_stored(client: TestClient) -> None:
+    page = client.post(
+        "/ui/research",
+        data={"question": ANSWERABLE, "max_steps": "4"},
+        headers={REQUEST_ID_HEADER: "ui-stored"},
+    )
+    assert page.status_code == 200
 
-    downloaded = client.post(TRACE_DOWNLOAD_PATH, data=form)
-    through_the_api = client.post(RESEARCH_PATH, json={"question": ANSWERABLE, "max_steps": 4})
+    downloaded = client.get("/v1/runs/ui-stored/trace.json")
+    through_the_api = client.get("/v1/runs/ui-stored")
 
     assert downloaded.status_code == 200
     assert downloaded.headers["content-type"].startswith("application/json")
@@ -129,10 +139,10 @@ def test_the_browser_download_is_the_trace_the_page_rendered(client: TestClient)
     assert json.loads(downloaded.text) == through_the_api.json()["trace"]
 
 
-def test_the_browser_download_answers_a_bad_form_with_the_shared_envelope(
+def test_the_legacy_form_download_still_answers_a_bad_form_with_the_shared_envelope(
     client: TestClient,
 ) -> None:
-    # A rendered HTML error page saved under a .json name is worse than a typed error.
+    # Kept for no-JS clients; a rendered HTML error saved as .json is worse than a typed error.
     response = client.post(TRACE_DOWNLOAD_PATH, data={"question": "", "max_steps": "4"})
 
     assert response.status_code == 422

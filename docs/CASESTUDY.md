@@ -94,6 +94,81 @@ correlation id is supplied per capture, so a rebuild is byte-identical and
 `python scripts/capture_ui.py --verify` fails on drift rather than quietly publishing a
 different run.
 
+## v0.2 — notes store, run artifacts, streaming, control scorecard
+
+Three weeks of depth turned the free path into something a reviewer can audit without
+re-running anything and without a model key.
+
+### Notes are a store (Week 1)
+
+A run writes typed `Note` records `{id, claim, source, context?, citation?}` and traces
+every write. The critic scores grounded, on-topic notes (overlap + presence), not
+`len(passages)`. The free-path critic is deliberately not an LLM: the arithmetic is in
+the trace, the same question under the same budget is byte-identical, and CI needs no
+credential. Rationale: [ADR-0004](adr/0004-notes-are-a-store.md).
+
+### A run is an artifact (Week 2)
+
+Finished runs are stored in-process under their correlation id (last N, oldest evicted).
+`GET /v1/runs/{id}` returns report, citations, notes, steps used, stop reason, and
+trace. `GET /v1/runs/{id}/trace.json` is the download the UI links to. `GET
+/v1/research/stream` emits SSE `trace` events with stable offsets (not wall clock), then
+a terminal `done` or `error`. Final statuses remain `done | refused | budget_exhausted |
+degraded`.
+
+### Evals measure control (Week 3)
+
+The golden scorecard reports steps used, stop-reason distribution, citation presence, and
+`refused_unanswerable` — never answer quality and never "beats GPT". Optional HTTP
+adapter tests stay gated on `RUN_P1_INTEGRATION=1` + `PRODUCTION_RAG_URL` pointing at a
+local free stack; CI keeps them skipped and never points at a production-rag Vercel host.
+
+### 10-minute hosted DEMO
+
+Host: <https://pax-agentic-rag.vercel.app> — fixture retriever only; **control demo, zero
+quality claim**.
+
+1. Open `/` (or `/docs`). Confirm honesty copy: free / deterministic, no API key.
+2. **Refused run.** Ask something off-corpus, e.g. `What were the quarterly revenues in
+   Patagonia?`, budget 3. Expect status `refused`, stop reason `no_evidence` or
+   `insufficient_evidence`, a report that names gaps, and no invented facts.
+3. **Answerable control.** Ask `Why do bounded research agents need explicit stop
+   reasons?` (or the form default). Expect `done`, citations, and a trace that includes
+   `plan_created` → `tool_*` → `note_added` → `critique` → `stop`.
+4. **Stream.** With JS on, steps append live from `GET /v1/research/stream` (offsets, not
+   timestamps). Without JS, `POST /ui/research` still renders the full page.
+5. **Download.** Click "Download stored trace (JSON)" — that is
+   `GET /v1/runs/{request_id}/trace.json`, the stored artifact, not a re-run.
+6. **curl the same contract.**
+
+```bash
+# answerable (fixture path)
+curl -sS -X POST https://pax-agentic-rag.vercel.app/v1/research \
+  -H "content-type: application/json" \
+  -H "x-request-id: demo-done" \
+  -d "{\"question\":\"Why do bounded research agents need explicit stop reasons?\",\"max_steps\":4,\"retriever\":\"fake\"}"
+
+# fetch the artifact
+curl -sS https://pax-agentic-rag.vercel.app/v1/runs/demo-done
+
+# refused
+curl -sS -X POST https://pax-agentic-rag.vercel.app/v1/research \
+  -H "content-type: application/json" \
+  -H "x-request-id: demo-refused" \
+  -d "{\"question\":\"What were the quarterly revenues in Patagonia?\",\"max_steps\":3,\"retriever\":\"fake\"}"
+
+# download trace
+curl -sS -OJ https://pax-agentic-rag.vercel.app/v1/runs/demo-refused/trace.json
+
+# stream (SSE)
+curl -sSN "https://pax-agentic-rag.vercel.app/v1/research/stream?question=Why%20use%20citations%20in%20RAG%3F&max_steps=4&retriever=fake"
+```
+
+Honesty bound: serverless instances do not share the in-memory run store; fetch the id
+from the same instance that produced it (same request id header works for the POST+GET
+pair on one cold start only if both hit the same isolate — prefer downloading immediately
+after the run, or use the response body's `trace` field).
+
 ## What I would test next
 
 1. Add a one-pass answer baseline over the same fixed goldens.

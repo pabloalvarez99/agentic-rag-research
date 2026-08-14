@@ -41,7 +41,7 @@ def test_health_is_documented_in_the_openapi_schema() -> None:
 
 
 def test_version_is_the_scaffold_version() -> None:
-    assert __version__ == "0.1.0"
+    assert __version__ == "0.2.0"
 
 
 def test_health_stays_liveness_only_and_reports_no_dependency() -> None:

@@ -25,6 +25,13 @@ A :class:`Note` answers all three in one typed record:
   :class:`~agentic_rag.tools.passage.Passage.source_path` it is carried and never
   resolved, opened, or joined against a local directory — it arrives from a
   retrieval service and is an identifier a human uses, not a file to read.
+* ``context`` is the heading ancestry the claim sits under, carried verbatim when
+  the backend supplied one. It is provenance, not claim: it says where in a
+  document the sentence lives. It is scored, because a corpus states its subject
+  in headings and drops it from the prose beneath them — the chunks under
+  *Citations › Citation markers* never repeat the word "citations", and a rule
+  that reads only prose would refuse a question about citations while holding
+  three passages about them.
 * ``citation`` is the chunk id the claim was lifted from, or ``None`` for a note
   no retrieved passage backs. ``None`` is not a hypothetical: it is what makes
   "grounded" a property the critic can *count* rather than assume, and the free
@@ -123,8 +130,12 @@ class Note(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: str = Field(min_length=1, description="Positional id, stable within one run.")
-    claim: str = Field(min_length=1, description="The sentence relied on, lifted verbatim.")
+    claim: str = Field(min_length=1, description="What is relied on, lifted verbatim.")
     source: str = Field(description="Corpus-relative path the claim came from. Never resolved.")
+    context: str | None = Field(
+        default=None,
+        description="Heading ancestry the claim sits under, when the backend supplied one.",
+    )
     citation: str | None = Field(
         default=None,
         description="Chunk id the claim was lifted from. None when no passage backs it.",
@@ -137,8 +148,8 @@ class Note(BaseModel):
 
     @property
     def terms(self) -> set[str]:
-        """Return the scoring terms of the claim, tokenised like everything else."""
-        return keyword_terms(self.claim)
+        """Return the scoring terms of the claim and the headings it sits under."""
+        return keyword_terms(self.claim) | keyword_terms(self.context or "")
 
 
 def note_from_passage(passage: Passage, *, position: int) -> Note | None:
@@ -162,6 +173,7 @@ def note_from_passage(passage: Passage, *, position: int) -> Note | None:
         id=note_id(position),
         claim=claim,
         source=passage.source_path,
+        context=passage.heading_path or passage.title,
         citation=passage.chunk_id,
     )
 

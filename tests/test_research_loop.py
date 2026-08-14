@@ -31,9 +31,46 @@ THIN = "How does chunking work?"
 MARKER = re.compile(r"\[(\d+)\]")
 
 
+HEADING_STATED = "Why use citations in RAG?"
+"""A question whose subject the corpus states in headings and not in the prose beneath.
+
+It is here because a scoring change that read claims and ignored their headings turned
+this run into a refusal while it held three passages about citations — and every golden
+still passed, because none of them asks a question of this shape.
+"""
+
+
 @pytest.fixture
 def tool() -> RetrieveTool:
     return RetrieveTool(FakeRetrievalBackend())
+
+
+def test_heading_context_keeps_topic_words_that_live_above_the_prose(tool: RetrieveTool) -> None:
+    state = run_research(HEADING_STATED, tool=tool)
+
+    assert state.status is ResearchStatus.DONE
+    assert state.notes
+    assert any("citation" in " ".join(sorted(note.terms)) for note in state.notes)
+    assert any(event.event == "note_added" for event in state.trace)
+
+
+def test_trace_events_carry_stable_offsets_not_wall_clock(tool: RetrieveTool) -> None:
+    state = run_research(ANSWERABLE, tool=tool)
+
+    assert [event.offset for event in state.trace] == list(range(len(state.trace)))
+    dumped = [event.model_dump(mode="json") for event in state.trace]
+    assert all("timestamp" not in event and "ts" not in event for event in dumped)
+    assert all("offset" in event for event in dumped)
+
+
+def test_a_listener_sees_events_in_order_as_they_are_recorded(tool: RetrieveTool) -> None:
+    seen: list[str] = []
+
+    state = run_research(ANSWERABLE, tool=tool, listener=lambda event: seen.append(event.event))
+
+    assert seen == [event.event for event in state.trace]
+    assert seen[0] == "plan_created"
+    assert seen[-1] == "stop"
 
 
 def markers(report: str) -> list[int]:

@@ -142,6 +142,23 @@ class RunNotReportable(RuntimeSurfaceError):
     """
 
 
+class RunNotFound(RuntimeSurfaceError):
+    """No run with that id is held by this process.
+
+    It reuses :data:`ErrorType.NOT_FOUND` rather than inventing a slug, because to a
+    client this is the ordinary "that resource is not here" and branching on a second
+    word for it buys nothing.
+
+    The message says *this process* deliberately. The run store is bounded, in-memory
+    and process-local, so an id can be absent for three different reasons — it never
+    existed, it was evicted, or it was served by another instance — and a message that
+    implied durability would send a reader looking for a database that does not exist.
+    """
+
+    error_type: ClassVar[ErrorType] = ErrorType.NOT_FOUND
+    http_status: ClassVar[HTTPStatus] = HTTPStatus.NOT_FOUND
+
+
 def _clean(fragment: str, *, limit: int) -> str:
     """Return ``fragment`` without control characters, cut to ``limit``."""
     collapsed = " ".join(_CONTROL.sub(" ", fragment).split())

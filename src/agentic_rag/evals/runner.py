@@ -71,20 +71,36 @@ def _expect_equal(failures: list[str], field: str, actual: object, expected: obj
 
 
 def evaluate(path: Path = DEFAULT_DATASET) -> EvalReport:
-    """Evaluate ``path`` and aggregate steps, citation presence, and stop status."""
+    """Evaluate ``path`` and aggregate control metrics (not research quality)."""
     results = tuple(evaluate_case(case) for case in load_dataset(path))
     total = len(results)
+    if total == 0:
+        raise RuntimeError(f"dataset {path} produced zero cases")
     passed = sum(result.passed for result in results)
     steps = sum(result.steps_used for result in results)
     cited = sum(result.has_citations for result in results)
     status_counts = dict(sorted(Counter(result.status for result in results).items()))
+    stop_reason_counts = dict(
+        sorted(Counter(result.stop_reason for result in results).items())
+    )
+    unanswerable = [result for result in results if result.category == "unanswerable"]
+    refused_unanswerable = sum(1 for result in unanswerable if result.status == "refused")
+    unanswerable_n = len(unanswerable)
+    citation_rate = cited / total
     metrics = EvalMetrics(
         total_cases=total,
         passed_cases=passed,
         pass_rate=passed / total,
         mean_steps_used=steps / total,
-        has_citations_rate=cited / total,
+        has_citations_rate=citation_rate,
+        citation_present_rate=citation_rate,
         status_counts=status_counts,
+        stop_reason_counts=stop_reason_counts,
+        refused_unanswerable=refused_unanswerable,
+        unanswerable_cases=unanswerable_n,
+        refused_unanswerable_rate=(
+            refused_unanswerable / unanswerable_n if unanswerable_n else 1.0
+        ),
     )
     return EvalReport(dataset=path.as_posix(), metrics=metrics, results=results)
 

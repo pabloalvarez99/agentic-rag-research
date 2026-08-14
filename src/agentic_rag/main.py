@@ -34,7 +34,9 @@ from agentic_rag.api.metrics import (
 from agentic_rag.api.middleware import RequestIdMiddleware
 from agentic_rag.api.routes import SERVICE_STATE_KEY
 from agentic_rag.api.routes import router as research_router
+from agentic_rag.api.runs import RUNS_PATH
 from agentic_rag.api.service import ResearchService
+from agentic_rag.api.stream import router as stream_router
 from agentic_rag.api.ui import STATIC_DIRECTORY
 from agentic_rag.api.ui import router as ui_router
 
@@ -143,14 +145,21 @@ def create_app(service: ResearchService | None = None) -> FastAPI:
     app.include_router(router)
     app.include_router(ui_router)
     app.include_router(research_router)
+    app.include_router(stream_router)
 
     # Added last so it is the outermost middleware and therefore counts every response
     # this application emits, including the ones an exception handler produced. The
     # label set is pinned to the routes just registered rather than to whatever path a
     # caller sends, so a scanner walking unknown URLs cannot grow the metric.
     exact_paths, mount_paths = declared_paths(
-        [app.routes, router.routes, ui_router.routes, research_router.routes],
-        mounts=[STATIC_MOUNT],
+        [
+            app.routes,
+            router.routes,
+            ui_router.routes,
+            research_router.routes,
+            stream_router.routes,
+        ],
+        mounts=[STATIC_MOUNT, RUNS_PATH],
     )
     app.add_middleware(
         MetricsMiddleware,

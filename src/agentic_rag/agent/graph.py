@@ -36,6 +36,7 @@ from agentic_rag.agent.state import (
     ResearchState,
     ResearchStatus,
     StopReason,
+    TraceListener,
 )
 from agentic_rag.agent.synthesizer import synthesize
 from agentic_rag.tools.retrieve import (
@@ -156,6 +157,7 @@ def run_research(
     notes_tool: SearchNotesTool | None = DEFAULT_NOTES_TOOL,
     max_steps: int = DEFAULT_MAX_STEPS,
     top_k: int = DEFAULT_TOP_K,
+    listener: TraceListener | None = None,
 ) -> ResearchState:
     """Research ``question`` under a step budget and return the finished state.
 
@@ -170,12 +172,17 @@ def run_research(
             another retrieval step. Pass ``None`` to disable it.
         max_steps: Hard cap on tool calls, enforced by the state.
         top_k: Passages one retrieval step may return.
+        listener: Called with each trace event as it is recorded, before the run
+            finishes. It is how a caller watches a run in progress; it cannot
+            change one, and the loop does not wait on it.
 
     Returns:
         The state, always with a terminal status, a report, and a trace whose
         last event is ``stop``.
     """
     state = ResearchState(question=question, max_steps=max_steps)
+    if listener is not None:
+        state.subscribe(listener)
     retriever = build_retrieve_tool() if tool is None else tool
 
     plan_node(state)
