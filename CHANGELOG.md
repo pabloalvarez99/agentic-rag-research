@@ -7,6 +7,32 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-14
+
+### Added
+
+- **Payload compare.** `POST /v1/runs/compare` accepts two full run artifacts (not
+  server ids) and returns a typed field-level diff (`status`, `stop_reason`,
+  `steps_used`, notes, citations, …). Byte-stable empty diff for identical fixtures.
+  Rationale: [ADR-0005](docs/adr/0005-compare-on-payloads.md).
+- `GET /v1/runs/{id}/run.json` downloads the full finished-run artifact (attachment)
+  so a reviewer can keep the payload after a serverless recycle forgets in-memory ids.
+- `/compare` UI loads two local `run-*.json` files, shows stop reason / steps / notes /
+  citations side by side, and posts the bodies to the compare route.
+- Hosted contract smoke: `scripts/hosted_smoke.ps1` (health, done, refuse, SSE first
+  event, compare). Default CI stays offline; prefer a local transcript over a flaky
+  network job.
+- OpenAPI coverage for `/v1/research`, `/v1/research/stream`, `/v1/runs/*`, and compare.
+- Golden `critic-notes-exist-not-success` (18th case): grounded notes present but
+  off-topic → refuse, not success. Does not weaken the existing 17 free-path cases.
+- Multi-hop event-sequence test: critique after retrieve-1 must precede and justify
+  retrieve-2.
+
+### Changed
+
+- Free-path golden set is **18/18** control cases (`pass_rate` 1.0, `billed_usd` 0).
+- Hosted DEMO script documents download → compare of refused vs done runs.
+
 ## [0.2.0] - 2026-08-14
 
 ### Added
@@ -72,6 +98,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - There is no hosted demo, streaming, authentication, rate limiting, model-based planning,
   arbitrary web/write tool, or multi-agent orchestration in this release.
 
-[Unreleased]: https://github.com/pabloalvarez99/agentic-rag-research/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/pabloalvarez99/agentic-rag-research/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/pabloalvarez99/agentic-rag-research/releases/tag/v0.3.0
 [0.2.0]: https://github.com/pabloalvarez99/agentic-rag-research/releases/tag/v0.2.0
 [0.1.0]: https://github.com/pabloalvarez99/agentic-rag-research/releases/tag/v0.1.0

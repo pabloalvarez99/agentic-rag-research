@@ -70,5 +70,11 @@ button:hover { background: #86e4e8; }
 .diagnostics { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; margin-top: 1.5rem; padding-top: 1rem; color: var(--muted); border-top: 1px solid var(--line); font-size: .84rem; }
 .page-footer { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; margin-top: 2.2rem; padding-top: 1.1rem; color: var(--muted); border-top: 1px solid var(--line); font-size: .85rem; }
 .page-footer nav { display: flex; gap: 1rem; }
-@media (max-width: 620px) { .shell { padding: 2rem 0; } .query-panel, .outcome { padding: 1rem; } button { width: 100%; } }
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+.compare-grid .outcome { margin-top: 0; }
+.diff-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: .9rem; }
+.diff-table th, .diff-table td { padding: .55rem .7rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+.diff-table th { color: var(--muted); font-size: .72rem; text-transform: uppercase; background: var(--sunk); }
+.diff-table td pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: .8rem/1.45 ui-monospace, monospace; color: var(--muted); }
+@media (max-width: 620px) { .shell { padding: 2rem 0; } .query-panel, .outcome { padding: 1rem; } button { width: 100%; } .compare-grid { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }

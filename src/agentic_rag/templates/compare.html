@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Compare runs · Free demo{% endblock %}
+{% block content %}
+  <header class="hero compact">
+    <p class="eyebrow">Payload compare</p>
+    <h1>Two runs, side by side.</h1>
+    <p class="lede">Load two downloaded <code>run-*.json</code> files. After a recycle the server forgets ids; the files remain the source of truth.</p>
+  </header>
+
+  <section class="query-panel" aria-labelledby="compare-title">
+    <div class="panel-heading">
+      <div><p class="eyebrow">Local files</p><h2 id="compare-title">Load two finished runs</h2></div>
+      <span class="mode-tag">No server id lookup</span>
+    </div>
+    <form id="compare-form" action="#" method="post">
+      <label for="left-file">Left run (JSON)</label>
+      <input id="left-file" name="left" type="file" accept="application/json,.json" required
+        aria-describedby="left-help">
+      <p class="hint" id="left-help">Download from <code>GET /v1/runs/&#123;id&#125;/run.json</code> right after a run, or paste any complete artifact.</p>
+
+      <label for="right-file">Right run (JSON)</label>
+      <input id="right-file" name="right" type="file" accept="application/json,.json" required
+        aria-describedby="right-help">
+      <p class="hint" id="right-help">Typical pair: a <code>done</code> control next to a <code>refused</code> off-corpus run.</p>
+
+      <div class="actions">
+        <button type="submit">Compare payloads</button>
+        <a href="/">Back to research</a>
+        <a href="/docs">API contract</a>
+      </div>
+    </form>
+    <p id="compare-error" class="error-message" hidden></p>
+  </section>
+
+  <section id="compare-summary" class="outcome" hidden aria-live="polite">
+    <div class="outcome-header">
+      <div>
+        <p class="eyebrow">Typed diff</p>
+        <h2 id="compare-result-title">Result</h2>
+      </div>
+      <p id="compare-identical" class="mode-tag">—</p>
+    </div>
+    <p id="compare-ids" class="hint"></p>
+    <div id="compare-diff-list"></div>
+  </section>
+
+  <section id="compare-columns" class="compare-grid" hidden aria-label="Side by side runs">
+    <article class="outcome" id="compare-left-panel">
+      <div class="outcome-header">
+        <div><p class="eyebrow">Left</p><h2 id="left-heading">Left</h2></div>
+        <p id="left-status" class="mode-tag">—</p>
+      </div>
+      <dl class="run-stats">
+        <div><dt>Stop reason</dt><dd id="left-stop">—</dd></div>
+        <div><dt>Steps</dt><dd id="left-steps">—</dd></div>
+        <div><dt>Notes</dt><dd id="left-notes-count">—</dd></div>
+        <div><dt>Citations</dt><dd id="left-cites-count">—</dd></div>
+      </dl>
+      <section><h3>Notes</h3><pre id="left-notes" class="report"></pre></section>
+      <section><h3>Citations</h3><pre id="left-cites" class="report"></pre></section>
+    </article>
+    <article class="outcome" id="compare-right-panel">
+      <div class="outcome-header">
+        <div><p class="eyebrow">Right</p><h2 id="right-heading">Right</h2></div>
+        <p id="right-status" class="mode-tag">—</p>
+      </div>
+      <dl class="run-stats">
+        <div><dt>Stop reason</dt><dd id="right-stop">—</dd></div>
+        <div><dt>Steps</dt><dd id="right-steps">—</dd></div>
+        <div><dt>Notes</dt><dd id="right-notes-count">—</dd></div>
+        <div><dt>Citations</dt><dd id="right-cites-count">—</dd></div>
+      </dl>
+      <section><h3>Notes</h3><pre id="right-notes" class="report"></pre></section>
+      <section><h3>Citations</h3><pre id="right-cites" class="report"></pre></section>
+    </article>
+  </section>
+
+  <footer class="page-footer">
+    <span>Compare posts full payloads to <code>POST /v1/runs/compare</code>. Server ids are never resolved.</span>
+    <nav aria-label="Service links"><a href="/">Research</a><a href="/health">Health</a><a href="/openapi.json">OpenAPI</a></nav>
+  </footer>
+{% endblock %}

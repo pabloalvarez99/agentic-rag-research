@@ -133,6 +133,32 @@ def test_a_grounded_note_about_something_else_does_not_count_toward_the_threshol
     assert verdict.score == 3
 
 
+def test_off_topic_grounded_notes_never_clear_sufficiency_even_in_volume() -> None:
+    """Critic can lose: notes exist, all grounded, none on-topic → not success.
+
+    Volume alone must not win. Five keystore claims are still five wrong claims.
+    """
+    off_topic = [
+        note(
+            f"off-{index}",
+            "Keystores belong outside version control and password rotation is separate.",
+            position=index,
+        )
+        for index in range(1, 6)
+    ]
+
+    verdict = critique("hybrid retrieval reciprocal rank fusion", off_topic)
+
+    assert verdict.note_count == 5
+    assert verdict.grounded_note_count == 5
+    assert verdict.relevant_note_count == 0
+    assert verdict.keyword_overlap == 0
+    assert verdict.score == 0
+    assert not verdict.sufficient
+    assert verdict.gaps
+    assert {gap.kind for gap in verdict.gaps} >= {"uncovered_terms"}
+
+
 def test_the_critic_requests_note_search_only_when_multiple_notes_are_sufficient() -> None:
     one = critique("hybrid retrieval", [note("a", "Hybrid retrieval fuses rankings.")])
     many = critique(

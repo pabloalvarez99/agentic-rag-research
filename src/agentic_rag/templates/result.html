@@ -37,8 +37,10 @@
         <h3>{{ entry.event | replace('_', ' ') }}</h3><pre>{{ entry.payload | tojson(indent=2) }}</pre>
       </div></li>{% endfor %}</ol>
       <p class="trace-actions">
+        <a class="download-link" href="/v1/runs/{{ result.request_id }}/run.json">Download full run (JSON)</a>
         <a class="download-link" href="/v1/runs/{{ result.request_id }}/trace.json">Download stored trace (JSON)</a>
-        <span class="hint">Same events as this page, served from <code>GET /v1/runs/{{ result.request_id }}/trace.json</code> — the artifact this process stored, not a second run.</span>
+        <a href="/compare">Compare two downloads</a>
+        <span class="hint">Full run is the compare input; trace is the timeline only. Both come from the store, not a second performance.</span>
       </p>
     </details>
     <footer class="diagnostics"><span>Request ID</span><code>{{ result.request_id }}</code><span class="mode-tag">Fixture retriever · control demo · $0</span></footer>

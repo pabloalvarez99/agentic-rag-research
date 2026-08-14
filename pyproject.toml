@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentic-rag-research"
-version = "0.2.0"
+version = "0.3.0"
 description = "Agentic RAG research agent: a plan / retrieve / critique loop over a retrieval service, runnable end to end on deterministic local providers."
 readme = "README.md"
 requires-python = ">=3.12"

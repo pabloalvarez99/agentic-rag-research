@@ -25,6 +25,12 @@ from typing import Annotated, Any, Final
 from fastapi import APIRouter, Depends, Request, Response
 
 from agentic_rag.agent.state import TraceEvent
+from agentic_rag.api.compare import (
+    COMPARE_PATH,
+    CompareRequest,
+    CompareResponse,
+    compare_runs,
+)
 from agentic_rag.api.errors import ErrorResponse, RunNotFound
 from agentic_rag.api.handlers import correlation_id
 from agentic_rag.api.metrics import run_and_count
@@ -49,8 +55,19 @@ RUN_PATH: Final = f"{RUNS_PATH}/{{run_id}}"
 RUN_TRACE_PATH: Final = f"{RUN_PATH}/trace.json"
 """The same run, projected to its trace and offered as a download."""
 
+RUN_ARTIFACT_PATH: Final = f"{RUN_PATH}/run.json"
+"""The full finished-run artifact as a downloadable JSON file."""
+
 CONTENT_DISPOSITION: Final = "content-disposition"
 """Header that turns the JSON body into a download rather than a rendered page."""
+
+
+def _safe_id_token(request_id: str) -> str:
+    """Return a filename-safe token derived from a correlation id."""
+    safe = "".join(
+        character for character in request_id if character.isalnum() or character in "-_"
+    )
+    return safe or "export"
 
 
 def trace_filename(request_id: str) -> str:
@@ -66,10 +83,19 @@ def trace_filename(request_id: str) -> str:
     Returns:
         A filename of the form ``trace-<id>.json``.
     """
-    safe = "".join(
-        character for character in request_id if character.isalnum() or character in "-_"
-    )
-    return f"trace-{safe or 'export'}.json"
+    return f"trace-{_safe_id_token(request_id)}.json"
+
+
+def run_filename(request_id: str) -> str:
+    """Return the download filename for the full artifact of ``request_id``.
+
+    Args:
+        request_id: Correlation id of the run being exported.
+
+    Returns:
+        A filename of the form ``run-<id>.json``.
+    """
+    return f"run-{_safe_id_token(request_id)}.json"
 
 SERVICE_STATE_KEY: Final = "research_service"
 """Attribute on ``app.state`` holding the service every request is served by."""
@@ -262,6 +288,79 @@ def get_run_trace(
     response.headers[REQUEST_ID_HEADER] = correlation_id(request)
     response.headers[CONTENT_DISPOSITION] = f'attachment; filename="{trace_filename(run_id)}"'
     return list(stored_run(service, run_id).trace)
+
+
+@router.get(
+    RUN_ARTIFACT_PATH,
+    response_model=RunArtifact,
+    responses=_RUN_RESPONSES,
+    summary="Download one finished run as a JSON file",
+    response_description=(
+        "The full stored artifact — question, stop reason, steps, notes, citations, "
+        "report, and trace — served as a JSON attachment a reviewer can keep after the "
+        "in-memory id is gone."
+    ),
+)
+def get_run_artifact_file(
+    run_id: str,
+    request: Request,
+    response: Response,
+    service: Annotated[ResearchService, Depends(get_service)],
+) -> RunArtifact:
+    """Serve one stored run as a downloadable file.
+
+    The file is the durable hand-off for compare: after a serverless recycle the id is
+    gone, but the JSON still carries every field ``POST /v1/runs/compare`` needs.
+
+    Args:
+        run_id: Correlation id of the run.
+        request: The incoming request, read for its correlation id.
+        response: The outgoing response, whose correlation and download headers are set.
+        service: The application's research service.
+
+    Returns:
+        The stored artifact.
+    """
+    response.headers[REQUEST_ID_HEADER] = correlation_id(request)
+    response.headers[CONTENT_DISPOSITION] = f'attachment; filename="{run_filename(run_id)}"'
+    return stored_run(service, run_id)
+
+
+@router.post(
+    COMPARE_PATH,
+    response_model=CompareResponse,
+    responses={
+        HTTPStatus.UNPROCESSABLE_ENTITY: _ERROR_RESPONSES[HTTPStatus.UNPROCESSABLE_ENTITY],
+        HTTPStatus.INTERNAL_SERVER_ERROR: _ERROR_RESPONSES[HTTPStatus.INTERNAL_SERVER_ERROR],
+    },
+    summary="Compare two finished-run payloads (not server ids)",
+    response_description=(
+        "A typed field-level diff of stop reason, steps, notes, citations, and the "
+        "other audited fields. Empty when the payloads match. Never looks up a run by id."
+    ),
+)
+def compare_run_payloads(
+    payload: CompareRequest,
+    request: Request,
+    response: Response,
+) -> CompareResponse:
+    """Diff two complete run artifacts supplied in the body.
+
+    Ids are deliberately not accepted. The store is bounded, in-memory, and not shared
+    across serverless instances; a compare keyed on ids would 404 the day a reviewer
+    needed it most. The payloads — usually two downloaded ``run-*.json`` files — are the
+    source of truth.
+
+    Args:
+        payload: Left and right finished-run bodies.
+        request: The incoming request, read for its correlation id.
+        response: The outgoing response, whose correlation header is set here.
+
+    Returns:
+        The typed diff, byte-stable for a given pair of inputs.
+    """
+    response.headers[REQUEST_ID_HEADER] = correlation_id(request)
+    return compare_runs(payload.left, payload.right)
 
 
 @router.post(

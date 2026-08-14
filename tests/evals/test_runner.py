@@ -17,14 +17,14 @@ def test_every_committed_golden_passes_offline(monkeypatch: pytest.MonkeyPatch) 
     assert report.all_passed
     assert report.provider == "fake"
     assert report.billed_usd == 0.0
-    assert report.metrics.total_cases == 17
-    assert report.metrics.passed_cases == 17
-    assert report.metrics.status_counts == {"budget_exhausted": 3, "done": 7, "refused": 7}
+    assert report.metrics.total_cases == 18
+    assert report.metrics.passed_cases == 18
+    assert report.metrics.status_counts == {"budget_exhausted": 3, "done": 7, "refused": 8}
     assert 1.0 <= report.metrics.mean_steps_used <= 2.0
     assert 0.0 < report.metrics.has_citations_rate < 1.0
     assert report.metrics.citation_present_rate == report.metrics.has_citations_rate
     assert report.metrics.stop_reason_counts
-    assert sum(report.metrics.stop_reason_counts.values()) == 17
+    assert sum(report.metrics.stop_reason_counts.values()) == 18
     assert report.metrics.unanswerable_cases == 4
     assert report.metrics.refused_unanswerable == 4
     assert report.metrics.refused_unanswerable_rate == 1.0

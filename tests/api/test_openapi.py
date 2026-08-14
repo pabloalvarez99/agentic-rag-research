@@ -17,6 +17,9 @@ from agentic_rag.api.schemas import MAX_MAX_STEPS, MAX_QUESTION_CHARS, MAX_TOP_K
 from agentic_rag.main import create_app
 
 RESEARCH = "/v1/research"
+STREAM = "/v1/research/stream"
+RUNS = "/v1/runs/{run_id}"
+COMPARE = "/v1/runs/compare"
 
 
 @pytest.fixture(scope="module")
@@ -119,3 +122,27 @@ def test_the_citation_shape_is_the_shared_one(schema: dict[str, Any]) -> None:
         "start_line",
         "end_line",
     }
+
+
+def test_stream_runs_and_compare_are_in_the_contract(schema: dict[str, Any]) -> None:
+    paths = schema["paths"]
+    assert STREAM in paths
+    assert "get" in paths[STREAM]
+    assert RUNS in paths
+    assert "get" in paths[RUNS]
+    assert f"{RUNS}/trace.json" in paths
+    assert f"{RUNS}/run.json" in paths
+    assert COMPARE in paths
+    assert "post" in paths[COMPARE]
+    compare_200 = paths[COMPARE]["post"]["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]["$ref"]
+    assert compare_200.rsplit("/", 1)[-1] == "CompareResponse"
+    assert set(component(schema, "CompareResponse")["properties"]) == {
+        "identical",
+        "diffs",
+        "left_request_id",
+        "right_request_id",
+    }
+    assert set(component(schema, "CompareRequest")["properties"]) == {"left", "right"}
+    assert component(schema, "CompareRequest")["additionalProperties"] is False
