@@ -67,7 +67,19 @@ jobs:
             --data-urlencode 'question=Why do bounded research agents need explicit stop reasons?' \
             --data 'max_steps=4' \
             http://127.0.0.1:8010/ui/research)
-          RESULT="$result" python -c 'import os; page=os.environ["RESULT"]; assert "Trace timeline" in page; assert "Request ID" in page; assert "Citations" in page'
+          RESULT="$result" python -c 'import os; page=os.environ["RESULT"]; assert "Trace timeline" in page; assert "Request ID" in page; assert "Citations" in page; assert "Download trace (JSON)" in page'
+          trace=$(curl --fail --silent \
+            --data-urlencode 'question=Why do bounded research agents need explicit stop reasons?' \
+            --data 'max_steps=4' \
+            http://127.0.0.1:8010/ui/trace.json)
+          TRACE="$trace" python -c 'import json, os; events=json.loads(os.environ["TRACE"]); assert events[0]["event"] == "plan_created", events[0]; assert events[-1]["event"] == "stop", events[-1]'
+          exported=$(curl --fail --silent \
+            --header 'content-type: application/json' \
+            --data '{"question":"Why use reciprocal rank fusion?","retriever":"fake"}' \
+            http://127.0.0.1:8010/v1/research/trace)
+          EXPORTED="$exported" python -c 'import json, os; events=json.loads(os.environ["EXPORTED"]); assert events[-1]["event"] == "stop", events[-1]'
+          scrape=$(curl --fail --silent http://127.0.0.1:8010/metrics)
+          SCRAPE="$scrape" python -c 'import os; text=os.environ["SCRAPE"]; assert "process_up 1" in text, text; assert "research_total{status=\"done\"}" in text, text; assert "research_steps_used_total" in text, text'
 
       - name: Show the API log after a failure
         if: failure()

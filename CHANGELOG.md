@@ -7,6 +7,18 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- `POST /v1/research/trace`: the same request as `POST /v1/research`, answered with only
+  that run's trace as a JSON attachment. It is a projection of the existing response and
+  introduces no new event semantics; nothing is stored between requests.
+- A "Download trace (JSON)" button on the result page, posting to `/ui/trace.json` and
+  saving the timeline the page is showing.
+- `GET /metrics`: Prometheus text exposition with `process_up`, `requests_total` by
+  method/route/status, `research_total` by terminal status, and
+  `research_steps_used_total`. Counters are process-local, the route label is restricted
+  to declared routes, and no question text or correlation id is ever a label.
+
 ## [0.1.0] - 2026-08-13
 
 ### Added

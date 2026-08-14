@@ -52,6 +52,8 @@ report, citations, terminal status, request id, steps used, and expandable trace
 | Local `search_notes` tool | **LIVE (optional)** | critic request, deterministic tool tests, trace events |
 | Tagged release | **LIVE** | [v0.1.0 notes](docs/releases/v0.1.0.md); no hosted demo claimed |
 | UI captures of the three outcomes | **LIVE** | [committed PNGs](#what-that-looks-like-before-you-run-it) rebuilt by `scripts/capture_ui.py` |
+| Trace export as JSON, from the API and the page | **LIVE** | `POST /v1/research/trace`; the result page's download button; export tests |
+| `GET /metrics` Prometheus exposition | **LIVE** | `process_up`, `requests_total`, `research_total`, `research_steps_used_total`; metrics tests |
 
 Start with the [architecture](docs/architecture.md), read the one-page
 [ship truth](docs/SHIP.md), or use the [case study](docs/CASESTUDY.md) as the
@@ -216,6 +218,31 @@ the run reports its grounded finding *and* the terms no passage covered, and sto
 Rebuild them with `pip install -e ".[docs]"`, `playwright install chromium`, then
 `python scripts/capture_ui.py`; `python scripts/capture_ui.py --verify` re-captures into
 a temporary directory and compares SHA-256 digests against the committed files.
+
+### Taking the run with you
+
+**The trace can leave the page.** The download button under the timeline saves the run's
+events as JSON — the same list `POST /v1/research` returns under `trace`. The API serves
+it directly at `POST /v1/research/trace`, which takes the same body as the research route
+and answers with the events as an attachment:
+
+```bash
+curl -s -OJ http://127.0.0.1:8010/v1/research/trace \
+  -H "content-type: application/json" \
+  -d '{"question":"Why use reciprocal rank fusion?","retriever":"fake"}'
+```
+
+There is no stored "last trace" to fetch. A server-side slot holding the most recent run
+would be shared state between requests, and two callers exporting at once would race for
+it; the run is performed for the export instead, which on the free path is deterministic,
+so the file matches the page it came from.
+
+**What an operator can scrape.** `GET /metrics` returns the Prometheus text format:
+`process_up`, `requests_total` by method/route/status, `research_total` by terminal
+status, and `research_steps_used_total`. Counters are process-local, the route label is
+restricted to routes this service declares, and no question text or correlation id is
+ever a label. It is operational plumbing — it says how many runs ended `refused`, never
+whether they should have.
 
 ## How it uses series #1
 

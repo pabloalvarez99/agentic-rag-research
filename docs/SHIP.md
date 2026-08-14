@@ -24,7 +24,17 @@ python -m venv .venv
 
 Open <http://127.0.0.1:8010/>. The form is pinned to the fake retriever. Its result shows
 the report, resolved citations, terminal status, retrieval steps used, request id, and full
-trace. Backend failures render a typed page rather than a partial or invented answer.
+trace, and offers that trace as a JSON download. Backend failures render a typed page
+rather than a partial or invented answer.
+
+Two operational surfaces sit next to the demo, and neither says anything about answer
+quality. `POST /v1/research/trace` takes the same body as `POST /v1/research` and answers
+with only that run's trace, as an attachment — the export is a projection of the existing
+response, not a second contract, and there is no stored "last run" for two callers to race
+for. `GET /metrics` is the Prometheus text format: `process_up`, `requests_total` by
+method/route/status, `research_total` by terminal status, and `research_steps_used_total`.
+The route label is restricted to routes this service declares, so an unknown path cannot
+grow the metric, and no question text or correlation id is ever a label.
 
 What the three documented outcomes look like, captured from a running server and
 committed so a reviewer can see them without starting one. Deterministic fake retriever:
@@ -62,12 +72,16 @@ The CLI remains a script-friendly path:
 | Research UI and typed failures | **LIVE** | UI route/tests and real-server CI smoke |
 | Local `search_notes` | **LIVE (optional)** | critic request, tool/trace tests; no provider |
 | Committed UI captures | **LIVE** | three PNGs in `docs/assets`; `scripts/capture_ui.py`, byte-identical on re-run |
+| Trace export, API and browser | **LIVE** | `POST /v1/research/trace` and the result page's download button; the file is the same events as `trace` in the research response |
+| `GET /metrics` | **LIVE** | Prometheus text: `process_up`, `requests_total{method,path,status}`, `research_total{status}`, `research_steps_used_total` |
 
 ## What CI proves on the release commit
 
 - `ruff check .`, `mypy --strict`, and `pytest -q` on Python 3.12;
 - provider variables are empty for the free path;
-- the CLI demo, `GET /health`, the HTML home page, and a submitted UI run complete; and
+- the CLI demo, `GET /health`, the HTML home page, and a submitted UI run complete;
+- both trace exports return a timeline ending in `stop`, and `GET /metrics` reports
+  `process_up 1` and a `done` run it counted; and
 - the default fake backend needs no network or credential.
 
 ## Failure demos worth showing

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated, Final
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
@@ -20,7 +20,9 @@ from agentic_rag.api.errors import (
     describe_validation_errors,
 )
 from agentic_rag.api.handlers import correlation_id
-from agentic_rag.api.routes import get_service
+from agentic_rag.api.metrics import run_and_count
+from agentic_rag.api.request_id import REQUEST_ID_HEADER
+from agentic_rag.api.routes import CONTENT_DISPOSITION, get_service, trace_filename
 from agentic_rag.api.schemas import MAX_MAX_STEPS, MIN_MAX_STEPS, ResearchRequest
 from agentic_rag.api.service import ResearchService
 
@@ -28,6 +30,8 @@ PACKAGE_DIRECTORY: Final = Path(__file__).resolve().parent.parent
 TEMPLATE_DIRECTORY: Final = PACKAGE_DIRECTORY / "templates"
 STATIC_DIRECTORY: Final = PACKAGE_DIRECTORY / "static"
 DEMO_QUESTION: Final = "Why do bounded research agents need explicit stop reasons?"
+TRACE_DOWNLOAD_PATH: Final = "/ui/trace.json"
+"""Where the result page's download button posts. Named for what the browser saves."""
 
 LOGGER: Final = logging.getLogger(__name__)
 templates = Jinja2Templates(directory=TEMPLATE_DIRECTORY)
@@ -91,7 +95,7 @@ def research_ui(
         payload = ResearchRequest.model_validate(
             {"question": question, "max_steps": max_steps, "retriever": "fake"}
         )
-        result = service.run(payload, request_id=request_id)
+        result = run_and_count(request, service, payload, request_id=request_id)
     except ValidationError as error:
         failure = RequestInvalid(describe_validation_errors(error.errors()))
         return _render_failure(request, failure, question=question, max_steps=max_steps)
@@ -125,4 +129,51 @@ def research_ui(
             question=question,
             selected_max_steps=max_steps,
         ),
+    )
+
+
+@router.post(TRACE_DOWNLOAD_PATH)
+def download_trace(
+    request: Request,
+    question: Annotated[str, Form()],
+    max_steps: Annotated[str, Form()],
+    service: Annotated[ResearchService, Depends(get_service)],
+) -> Response:
+    """Answer the result page's download button with the run's trace as a JSON file.
+
+    The button posts the same question and budget the page was rendered from, and the
+    free path is deterministic, so the file a reviewer saves is the timeline they were
+    just reading rather than an approximation of it.
+
+    Failures answer in the shared JSON envelope rather than an HTML page: what the
+    browser asked for here is a file, and a rendered error page saved under a ``.json``
+    name is worse than a typed error a caller can read.
+
+    Args:
+        request: The incoming request, read for its correlation id.
+        question: The question the result page was rendered from.
+        max_steps: The retrieval budget the result page was rendered under.
+        service: The application's research service.
+
+    Returns:
+        The trace as a JSON attachment.
+
+    Raises:
+        RequestInvalid: The submitted form does not describe a runnable request.
+    """
+    request_id = correlation_id(request)
+    try:
+        payload = ResearchRequest.model_validate(
+            {"question": question, "max_steps": max_steps, "retriever": "fake"}
+        )
+    except ValidationError as error:
+        raise RequestInvalid(describe_validation_errors(error.errors())) from error
+
+    result = run_and_count(request, service, payload, request_id=request_id)
+    return JSONResponse(
+        content=[event.model_dump(mode="json") for event in result.trace],
+        headers={
+            REQUEST_ID_HEADER: request_id,
+            CONTENT_DISPOSITION: f'attachment; filename="{trace_filename(request_id)}"',
+        },
     )
