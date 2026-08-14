@@ -1,10 +1,9 @@
 # Ship notes
 
-**Status: M3 is LIVE on `main`; this is not a release.** The bounded research loop,
+**Status: M5 is LIVE on `main`; this is not a release.** The bounded research loop,
 deterministic fake retriever, FastAPI route, CLI, request ids, citations, refusal, and full
-trace are runnable from a clean clone. Draft PR #4 carries the synchronized 66-case
-golden dataset, evaluation runner, and reproducible scorecard; none is called LIVE until
-that PR lands on `main`.
+trace are runnable from a clean clone. The synchronized 17-case golden dataset and
+deterministic JSON evaluation scorecard are also merged and runnable on the free path.
 
 This page is the short operational truth. The [README](../README.md) is the hiring-facing
 tour, and [architecture.md](architecture.md) explains the trade-offs.
@@ -44,21 +43,21 @@ Then open <http://127.0.0.1:8010/docs> or call `POST /v1/research`.
 | Fake retrieval over committed Markdown | **LIVE** | packaged corpus and corpus tests |
 | `POST /v1/research` and CLI | **LIVE** | API/CLI parity and OpenAPI tests |
 | Optional production-rag HTTP adapter | **LIVE (opt-in)** | mock-transport tests; requires `PRODUCTION_RAG_URL` at runtime |
-| Golden research questions | **READY IN PR #4** | 66 cases, six slices, documented schema |
-| Evaluation runner and scorecard | **READY IN PR #4** | 12 hard invariants; not yet LIVE on `main` |
+| Golden research questions | **LIVE** | 17 cases, five slices, documented schema |
+| Evaluation runner and JSON scorecard | **LIVE** | exact expectations plus aggregate steps/citation/status metrics |
 | Release artifact / public hosted demo | **PLANNED (M6)** | no tag or deployment claimed |
 
 ## What CI must prove
 
-The CI lane is owned separately in draft PR #5. Before a release, the required gate is:
+The free-path CI workflow is merged on `main`. Its release gate covers:
 
 - `ruff check .`, `mypy --strict`, and `pytest -q` on Python 3.12;
 - provider variables empty for the free-path run;
 - a real CLI invocation and `GET /health` smoke check; and
 - no network or credential needed by the default `fake` backend.
 
-Until the workflow carrying those checks is merged and green on `main`, CI polish remains
-unfinished even if the same commands pass locally.
+M6 still requires those checks to be green on the exact release commit; a historical
+green run is evidence for that commit only.
 
 ## Failure demos worth showing
 
@@ -80,6 +79,6 @@ unfinished even if the same commands pass locally.
 
 ## Release gate
 
-M6 can be called shipped only after M5's runner evaluates the fixed goldens, the LIVE table
-points to merged code, CI is green on the exact release commit, links and secret scans pass,
-and a release note states which measurements came from fakes.
+M6 can be called shipped only after M5's runner passes all 17 fixed goldens on the exact
+release commit, the LIVE table points to merged code, CI is green on that commit, links and
+secret scans pass, and a release note states which measurements came from fakes.

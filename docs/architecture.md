@@ -1,13 +1,12 @@
 # Architecture — a bounded research loop behind three runtime surfaces
 
-Status: **M3 LIVE on `main`**. `plan`, `retrieve`, `critique`, the bounded loop,
+Status: **M5 LIVE on `main`**. `plan`, `retrieve`, `critique`, the bounded loop,
 stop rule, refusal path, cited report, and deterministic trace are reachable as a
 library, through `POST /v1/research`, and through a JSON-only CLI. The default
 backend is an in-process fake over committed Markdown. An HTTP adapter for a running
 production-rag service is implemented and opt-in; an end-to-end live-service run is
-not claimed. Draft PR #4 carries a synchronized 66-case golden dataset, its M5
-runner, and a reproducible fixture-contract scorecard; they are not LIVE on
-`main` until that PR merges.
+not claimed. A synchronized 17-case golden dataset and deterministic M5 JSON
+scorecard are merged on `main` and run entirely on the free fake backend.
 
 The question this project exists to answer: **what does a bounded agent loop add
 over a single retrieval pass, and how would you tell?** The design below is
@@ -330,30 +329,31 @@ from P1's reporting boundary:
 
 ## Evaluation boundary
 
-The M5 candidate in draft PR #4 runs 66 fixed questions across six behavior
-slices against the same deterministic 20-passage corpus used by the default
-retriever. It also records a one-pass retrieval baseline. That baseline returns
-retrieved evidence only; it does not generate an answer, so its measurements must
-not be presented as answer-quality or agent-uplift results.
+M5 runs 17 fixed questions across five behavior slices against the same
+deterministic 20-passage corpus used by the default retriever. Each case declares
+the expected terminal status, stop reason, exact steps used, citation bounds, at
+least one acceptable chunk when relevant, minimum distinct sources, and expected
+gap kinds. Paired cases hold the question constant while changing only the budget.
 
-The scorecard separates two kinds of evidence:
+The command exits nonzero if any case misses an expectation and emits a JSON
+scorecard with per-case failures plus these aggregate metrics:
 
-- **Hard invariants** fail the command: budgets are respected; the run is
-  terminal; plan/tool/stop trace order is valid; citations resolve to retrieved
-  corpus passages; repeated evidence is deduplicated; gaps are reported; and
-  repeated runs are deterministic.
-- **Descriptive metrics** report agreement with curated case constraints:
-  terminal status and stop reason, citation bounds and marker validity, expected
-  source/chunk coverage, plan expansion, repeated-evidence deduplication,
-  refusal recall, unexpected-refusal rate, trace validity, and the share served
-  entirely by the free fake backend.
+- total and passed cases, and pass rate;
+- mean retrieval steps used;
+- share of runs with citations; and
+- counts by terminal status.
 
-Every generated scorecard names the dataset digest, case count, backend, corpus
-size, repeat count, command, and evidence class. Results from the fake backend are
-labelled **fixture-contract**: they demonstrate control-plane behavior, not
-retrieval quality, answer quality, faithfulness, latency, production readiness,
-or superiority over another system. HTTP-backed quality evaluation remains
-optional future evidence and requires a running production-rag service.
+The loader rejects malformed records, duplicate ids, missing required slices,
+unknown corpus chunk ids, contradictory citation bounds, and pairs that change
+the question. The runner constructs `FakeRetrievalBackend` directly, so it never
+inherits an HTTP URL from the environment: provider is `fake`, billed cost is
+`$0`, and the command requires no network.
+
+These are fixture-contract measurements. They demonstrate conformance to curated
+control-flow expectations, not retrieval quality, answer quality, faithfulness,
+latency, production readiness, or superiority over another system. The current
+runner has no one-pass answer baseline; HTTP-backed quality evaluation remains
+future optional evidence and requires a running production-rag service.
 
 ## Failure modes
 
@@ -460,7 +460,7 @@ These names follow the portfolio plan rather than the older internal M0–M7 dra
 | M2 | Plan → retrieve → critique loop, step budget, stop reasons, citations, trace | **LIVE** |
 | M3 | `POST /v1/research`, CLI parity, request ids, typed transport errors | **LIVE** |
 | M4 | Optional production-rag HTTP retriever | **IMPLEMENTED / opt-in**; mock-transport tested, no live-service result claimed |
-| M5 | Golden runner, one-pass baseline, metrics and reproducible scorecard | **READY IN DRAFT PR #4**; 66 synchronized cases, not yet LIVE on `main` |
+| M5 | Golden runner and deterministic JSON behavioral scorecard | **LIVE**; 17 synchronized cases over five slices |
 | M6 | Release polish and public evidence | **PLANNED**; docs exist, release/tag/demo artifacts do not |
 
 M1 through M3 need no credential and no running retrieval service. M4 preserves that

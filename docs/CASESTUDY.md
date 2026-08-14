@@ -48,21 +48,20 @@ and CLI boundary, not fake refusals.
 ## Evidence and limitations
 
 The offline suite verifies contracts, state transitions, refusal, budget enforcement, API/CLI
-parity, and the HTTP adapter through a mock transport. Draft PR #4 adds a synchronized
-66-case golden dataset, a one-pass evidence baseline, and a reproducible fixture-contract
-scorecard across six behavior slices.
+parity, and the HTTP adapter through a mock transport. M5 adds a synchronized 17-case
+golden dataset and a deterministic JSON scorecard across five behavior slices.
 
 There is intentionally no quality claim here. Lexical fake retrieval cannot establish that
-planning improves retrieval or that the report is useful. PR #4's M5 candidate measures
-contracts and expectation agreement against a fixture; a quality claim still requires an
-HTTP-backed run on a real corpus, named providers, paired results, sample size, and
-uncertainty. The defensible result is: **the mechanism is runnable, bounded, inspectable,
-and its evaluation contract is ready for review.**
+planning improves retrieval or that the report is useful. M5 measures terminal behavior,
+steps, citations, source diversity, and gaps against curated fixture expectations; a quality
+claim still requires an HTTP-backed run on a real corpus, a one-pass answer baseline, named
+providers, paired results, sample size, and uncertainty. The defensible result is: **the
+mechanism is runnable, bounded, inspectable, and its evaluation contract is executable.**
 
 ## What I would test next
 
-1. Run the fixed goldens through the loop and the one-pass baseline.
-2. Publish steps used, citation presence, stop reason, and per-case deltas before aggregates.
+1. Add a one-pass answer baseline over the same fixed goldens.
+2. Publish per-case paired deltas before aggregates.
 3. Exercise the HTTP adapter against P1's free stack, including refusal and dependency-down.
 4. Add wall-clock and spend ceilings only when a hosted path creates those costs.
 5. Revisit a graph framework only when checkpoint/resume or parallel fan-out is required.

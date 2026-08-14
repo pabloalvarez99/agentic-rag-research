@@ -17,7 +17,7 @@ re-litigate those decisions and does not reimplement that retrieval stack; it co
 it and asks the next question: **what does an agent add over a single retrieval pass,
 and how do you tell?**
 
-## Status: M3 LIVE — the loop is reachable
+## Status: M5 LIVE — the loop is measurable offline
 
 The loop is complete as a library and exposed through both runtime surfaces:
 `plan → retrieve → critique`, bounded by a step budget, ending in a report whose every
@@ -34,8 +34,8 @@ key, and the default path contacts nothing.
 | FastAPI `POST /v1/research` and JSON CLI | **LIVE** | OpenAPI, API/CLI parity, and error tests |
 | Fake retriever over packaged Markdown | **LIVE** | default, offline, credential-free |
 | production-rag HTTP adapter | **LIVE (opt-in)** | mock HTTP transport; no live-service result claimed |
-| 66-case golden dataset | **READY IN PR #4** | six behavior slices; [schema and coverage](data/eval/README.md) |
-| Eval runner and reproducible scorecard | **READY IN PR #4** | 12 hard invariants; not yet LIVE on `main` |
+| 17-case golden dataset | **LIVE** | five behavior slices; [schema and coverage](data/eval/README.md) |
+| Deterministic eval runner and JSON scorecard | **LIVE** | terminal behavior, steps, citations, sources, and gaps |
 | Tagged release / hosted demo | **PLANNED (M6)** | not claimed |
 
 Start with the [architecture](docs/architecture.md), read the one-page
@@ -211,7 +211,7 @@ will not publish a quality number produced by it.
 | `src/agentic_rag/tools/` | The tool protocol, the `retrieve` tool, and its two backends. |
 | `src/agentic_rag/agent/` | The loop: `state` (budget, evidence, trace), `planner`, `critic`, `synthesizer`, `graph`. |
 | `tests/` | Offline tests. No network, no credentials. |
-| `data/eval/` | 66 hand-written goldens, schema, and curation rules; the M5 runner is in draft PR #4. |
+| `data/eval/` | 17 hand-written goldens, schema, and curation rules for the M5 runner. |
 | `docs/architecture.md` | Implemented loop, tool boundaries, retrieval seam, budgets, failures, and milestones. |
 | `docs/adr/` | Three accepted decision records with alternatives and consequences. |
 | `docs/SHIP.md` | One-page LIVE/PLANNED truth, release gate, and failure demos. |
