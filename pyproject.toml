@@ -49,6 +49,12 @@ dev = [
     "ruff>=0.7",
     "mypy>=1.13",
 ]
+# Documentation-only: the browser that rebuilds docs/assets/*.png. It is not in
+# `dev` because CI never rebuilds the captures — it consumes the committed PNGs,
+# and a headless browser download on every quality run would buy nothing.
+docs = [
+    "playwright>=1.49",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentic_rag"]
