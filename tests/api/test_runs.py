@@ -122,8 +122,9 @@ def test_re_storing_an_id_replaces_it_and_marks_it_newest() -> None:
     store.put(replacement)
 
     assert store.ids() == ("b", "a")
-    assert store.get("a") is not None
-    assert store.get("a").question == "replaced?"
+    replaced = store.get("a")
+    assert replaced is not None
+    assert replaced.question == "replaced?"
 
 
 def test_capacity_below_one_is_rejected() -> None:

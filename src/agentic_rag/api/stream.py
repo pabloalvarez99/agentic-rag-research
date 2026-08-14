@@ -42,7 +42,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
-from agentic_rag.agent.state import TraceEvent
+from agentic_rag.agent.state import DEFAULT_MAX_STEPS, TraceEvent
 from agentic_rag.api.errors import (
     ErrorResponse,
     ErrorType,
@@ -55,13 +55,9 @@ from agentic_rag.api.metrics import get_registry
 from agentic_rag.api.request_id import REQUEST_ID_HEADER
 from agentic_rag.api.routes import get_service
 from agentic_rag.api.runs import RUNS_PATH
-from agentic_rag.api.schemas import (
-    DEFAULT_MAX_STEPS,
-    DEFAULT_TOP_K,
-    ResearchRequest,
-    RetrieverChoice,
-)
+from agentic_rag.api.schemas import ResearchRequest, RetrieverChoice
 from agentic_rag.api.service import ResearchService
+from agentic_rag.tools.retrieve import DEFAULT_TOP_K
 
 STREAM_PATH: Final = "/v1/research/stream"
 """Where a run is watched. ``GET`` so a browser's ``EventSource`` can subscribe to it."""
