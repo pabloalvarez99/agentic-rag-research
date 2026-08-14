@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Research result · Free demo{% endblock %}
+{% block content %}
+  <header class="hero compact">
+    <p class="eyebrow">Run complete</p><h1>The trace is the product.</h1>
+    <p class="lede">Read the answer, then audit how the loop reached it.</p>
+  </header>
+  {% include "_form.html" %}
+  <article class="outcome outcome-{{ result.status.value }}" aria-labelledby="result-title">
+    <div class="outcome-header">
+      <div><p class="eyebrow">Research outcome</p><h2 id="result-title">{{ result.status.value | replace('_', ' ') | title }}</h2></div>
+      <dl class="run-stats">
+        <div><dt>Status</dt><dd>{{ result.status.value }}</dd></div>
+        <div><dt>Steps used</dt><dd>{{ result.steps_used }}</dd></div>
+        <div><dt>Citations</dt><dd>{{ result.citations | length }}</dd></div>
+      </dl>
+    </div>
+    <section aria-labelledby="report-heading">
+      <h3 id="report-heading">Report</h3><pre class="report">{{ result.report }}</pre>
+    </section>
+    <section aria-labelledby="citations-heading">
+      <h3 id="citations-heading">Citations</h3>
+      {% if result.citations %}
+        <ol class="citations">
+          {% for citation in result.citations %}
+            <li><p><span class="citation-marker">[{{ citation.marker }}]</span> <strong>{{ citation.source_path }}</strong></p>
+              {% if citation.snippet %}<p>{{ citation.snippet }}</p>{% endif %}
+              {% if citation.chunk_id %}<code>{{ citation.chunk_id }}</code>{% endif %}</li>
+          {% endfor %}
+        </ol>
+      {% else %}<p class="empty-copy">No citations were produced. The terminal status and stop event explain why.</p>{% endif %}
+    </section>
+    <details class="trace" open>
+      <summary>Trace timeline <span>{{ result.trace | length }} events</span></summary>
+      <ol>{% for entry in result.trace %}<li><span class="timeline-dot" aria-hidden="true"></span><div>
+        <h3>{{ entry.event | replace('_', ' ') }}</h3><pre>{{ entry.payload | tojson(indent=2) }}</pre>
+      </div></li>{% endfor %}</ol>
+    </details>
+    <footer class="diagnostics"><span>Request ID</span><code>{{ result.request_id }}</code><span class="mode-tag">Demo mode (free / deterministic)</span></footer>
+  </article>
+{% endblock %}

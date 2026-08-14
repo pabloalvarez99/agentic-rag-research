@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+  <header class="hero">
+    <p class="eyebrow">Plan → retrieve → critique → report</p>
+    <h1>Watch the agent earn its answer.</h1>
+    <p class="lede">A bounded research loop that shows its evidence, its stop reason, and every step it spent.</p>
+  </header>
+  {% include "_form.html" %}
+  <section class="empty-prompt" aria-label="What the demo reveals">
+    <p class="eyebrow">Inspectable by default</p>
+    <p>The report, resolved citations, terminal status, request id, and complete trace appear here after one run.</p>
+  </section>
+  <footer class="page-footer">
+    <span>Deterministic providers prove control flow and contracts, not hosted answer quality.</span>
+    <nav aria-label="Service links"><a href="/health">Health</a><a href="/openapi.json">OpenAPI JSON</a></nav>
+  </footer>
+{% endblock %}

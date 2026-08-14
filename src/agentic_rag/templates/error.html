@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Research failed · Free demo{% endblock %}
+{% block content %}
+  <header class="hero compact">
+    <p class="eyebrow error-label">Typed failure</p><h1>No answer was fabricated.</h1>
+    <p class="lede">The run failed before it could produce a report. Use the request id to correlate this page with server logs.</p>
+  </header>
+  {% include "_form.html" %}
+  <article class="outcome outcome-error" role="alert" aria-labelledby="error-title">
+    <p class="eyebrow error-label">Backend error</p>
+    <h2 id="error-title">{{ error.error_type.value | replace('_', ' ') | title }}</h2>
+    <p class="error-message">{{ error.error }}</p>
+    <footer class="diagnostics"><span>Request ID</span><code>{{ error.request_id }}</code><span class="error-code">{{ error.error_type.value }}</span></footer>
+  </article>
+{% endblock %}

@@ -1,0 +1,20 @@
+<section class="query-panel" aria-labelledby="query-title">
+  <div class="panel-heading">
+    <div><p class="eyebrow">Bounded run</p><h2 id="query-title">Research a question</h2></div>
+    <span class="mode-tag">Demo mode (free / deterministic)</span>
+  </div>
+  <form action="/ui/research" method="post">
+    <label for="question">Question</label>
+    <textarea id="question" name="question" rows="4" required maxlength="8000"
+      aria-describedby="question-help">{{ question }}</textarea>
+    <p class="hint" id="question-help">The in-process fake retriever uses the committed corpus. No API key or provider network is used.</p>
+
+    <label for="max_steps">Maximum steps</label>
+    <input id="max_steps" name="max_steps" type="number" required
+      min="{{ min_max_steps }}" max="{{ max_max_steps }}" value="{{ selected_max_steps }}"
+      aria-describedby="steps-help">
+    <p class="hint" id="steps-help">Hard budget shared by retrieval and optional local note-search tool calls.</p>
+
+    <div class="actions"><button type="submit">Run research</button><a href="/docs">API contract</a></div>
+  </form>
+</section>

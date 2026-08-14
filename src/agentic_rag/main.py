@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Literal
 
 from fastapi import APIRouter, FastAPI
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from agentic_rag import __version__
@@ -24,6 +25,8 @@ from agentic_rag.api.middleware import RequestIdMiddleware
 from agentic_rag.api.routes import SERVICE_STATE_KEY
 from agentic_rag.api.routes import router as research_router
 from agentic_rag.api.service import ResearchService
+from agentic_rag.api.ui import STATIC_DIRECTORY
+from agentic_rag.api.ui import router as ui_router
 
 SERVICE_NAME = "agentic-rag-research"
 
@@ -94,7 +97,9 @@ def create_app(service: ResearchService | None = None) -> FastAPI:
     setattr(app.state, SERVICE_STATE_KEY, ResearchService() if service is None else service)
     app.add_middleware(RequestIdMiddleware)
     install_error_handlers(app)
+    app.mount("/static", StaticFiles(directory=STATIC_DIRECTORY), name="static")
     app.include_router(router)
+    app.include_router(ui_router)
     app.include_router(research_router)
     return app
 
